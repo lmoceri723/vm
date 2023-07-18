@@ -324,10 +324,6 @@ PPFN read_page_on_disc(PPTE pte)
         return NULL;
     }
 
-//    free_page->pte = pte;
-    pte->hardware_format.valid = 1;
-    pte->hardware_format.frame_number = free_page->frame_number;
-
     return free_page;
 }
 
@@ -344,6 +340,15 @@ VOID write_modified_pages()
             return;
         }
 
+        // Problem 1: What if there are no more free disc spots?
+        // Problem 2: Do not give out more virtual addresses than we have memory + disc space
+        // One less = place to juggle with
+        // Problem 3: Undisclosed bug
+
+        if (disc_in_use)
+        {
+
+        }
         // LM Fix what if all spots are filled
         PUCHAR disc_spot = disc_in_use;
         while (disc_spot != disc_end)
@@ -555,7 +560,7 @@ VOID full_virtual_memory_test (VOID)
     }
     memset(pte_base, 0, num_pte_bytes);
 
-    // LM Ask how many bytes?
+    // LM Fix adjust size
     create_page_file(MB (1));
     //
     // Now perform random accesses.
