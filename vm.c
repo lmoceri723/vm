@@ -5,6 +5,7 @@
 #include "conversions.h"
 
 // sxd av to ignore all page faults when trying to write to arbitrary va
+// Second chance is an actual exception separate from a page fault
 
 #pragma comment(lib, "advapi32.lib")
 

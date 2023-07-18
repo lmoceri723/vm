@@ -1,0 +1,566 @@
+
+Microsoft (R) Windows Debugger Version 10.0.22621.1778 X86
+Copyright (c) Microsoft Corporation. All rights reserved.
+
+CommandLine: vm.exe
+
+************* Path validation summary **************
+Response                         Time (ms)     Location
+Deferred                                       srv*
+Symbol search path is: srv*
+Executable search path is: 
+ModLoad: 00380000 003fc000   vm.exe  
+ModLoad: 77430000 775df000   ntdll.dll
+ModLoad: 75ab0000 75ba0000   C:\Windows\SysWOW64\KERNEL32.DLL
+ModLoad: 755c0000 75833000   C:\Windows\SysWOW64\KERNELBASE.dll
+ModLoad: 75a30000 75aac000   C:\Windows\SysWOW64\ADVAPI32.dll
+ModLoad: 76f70000 77034000   C:\Windows\SysWOW64\msvcrt.dll
+ModLoad: 75c70000 75cf2000   C:\Windows\SysWOW64\sechost.dll
+ModLoad: 76be0000 76c9a000   C:\Windows\SysWOW64\RPCRT4.dll
+(4c20.1698): Break instruction exception - code 80000003 (first chance)
+eax=00000000 ebx=00000000 ecx=089a0000 edx=00000000 esi=006c4990 edi=0059c000
+eip=774e78e7 esp=0026f4f4 ebp=0026f520 iopl=0         nv up ei pl zr na pe nc
+cs=0023  ss=002b  ds=002b  es=002b  fs=0053  gs=002b             efl=00000246
+ntdll!LdrpDoDebuggerBreak+0x2b:
+774e78e7 cc              int     3
+0:000> bp !main
+Bp expression '!main' could not be resolved, adding deferred bp
+*** Bp expression '!main' contains symbols not qualified with module name.
+0:000> bp main
+Bp expression 'main' could not be resolved, adding deferred bp
+*** Bp expression 'main' contains symbols not qualified with module name.
+0:000> bp vm!main
+*** WARNING: Unable to verify checksum for vm.exe
+breakpoint 0 redefined
+breakpoint 1 redefined
+0:000> g
+Breakpoint 0 hit
+eax=003f64fc ebx=0059c000 ecx=00000000 edx=161cdfef esi=006cab68 edi=006d2dc0
+eip=00387ec0 esp=0026fc30 ebp=0026fc74 iopl=0         nv up ei pl nz na pe nc
+cs=0023  ss=002b  ds=002b  es=002b  fs=0053  gs=002b             efl=00000206
+vm!main:
+00387ec0 55              push    ebp
+0:000> bp write_modified_pages
+0:000> bl
+     0 e Disable Clear  00387ec0  [C:\Users\ltm14\CLionProjects\vm\vm.c @ 690]     0001 (0001)  0:**** vm!main
+     1 e Disable Clear  003874b0  [C:\Users\ltm14\CLionProjects\vm\vm.c @ 334]     0001 (0001)  0:**** vm!write_modified_pages
+0:000> g
+(4c20.1698): Access violation - code c0000005 (first chance)
+First chance exceptions are reported before any exception handling.
+This exception may be expected and handled.
+eax=00c59000 ebx=0059c000 ecx=00c59000 edx=00c59000 esi=006cab68 edi=006d2dc0
+eip=00387d08 esp=0026fba4 ebp=0026fc24 iopl=0         nv up ei pl nz na pe nc
+cs=0023  ss=002b  ds=002b  es=002b  fs=0053  gs=002b             efl=00010206
+vm!full_virtual_memory_test+0x378:
+00387d08 8911            mov     dword ptr [ecx],edx  ds:002b:00c59000=????????
+0:000> sxd av
+0:000> g
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+Breakpoint 1 hit
+eax=006dc5f8 ebx=00000000 ecx=006dc5f8 edx=00000000 esi=00387d19 edi=00000000
+eip=003874b0 esp=0026fb70 ebp=0026fb8c iopl=0         nv up ei pl zr na pe nc
+cs=0023  ss=002b  ds=002b  es=002b  fs=0053  gs=002b             efl=00000246
+vm!write_modified_pages:
+003874b0 55              push    ebp
+0:000> kn
+ # ChildEBP RetAddr      
+00 0026fb6c 0038769d     vm!write_modified_pages [C:\Users\ltm14\CLionProjects\vm\vm.c @ 334] 
+01 0026fb8c 0038776a     vm!find_trim_candidates+0x7d [C:\Users\ltm14\CLionProjects\vm\vm.c @ 257] 
+02 0026fb9c 00387d77     vm!get_free_page+0x2a [C:\Users\ltm14\CLionProjects\vm\vm.c @ 285] 
+03 0026fc24 00387ec8     vm!full_virtual_memory_test+0x3e7 [C:\Users\ltm14\CLionProjects\vm\vm.c @ 629] 
+04 0026fc2c 00388551     vm!main+0x8 [C:\Users\ltm14\CLionProjects\vm\vm.c @ 714] 
+05 (Inline) --------     vm!invoke_main+0x1c [D:\a\_work\1\s\src\vctools\crt\vcstartup\src\startup\exe_common.inl @ 78] 
+06 0026fc74 75ac7d59     vm!__scrt_common_main_seh+0xfa [D:\a\_work\1\s\src\vctools\crt\vcstartup\src\startup\exe_common.inl @ 288] 
+07 0026fc84 7749b79b     KERNEL32!BaseThreadInitThunk+0x19
+08 0026fcdc 7749b71f     ntdll!__RtlUserThreadStart+0x2b
+09 0026fcec 00000000     ntdll!_RtlUserThreadStart+0x1b
+0:000> dv disc_spot
+0:000> u
+vm!write_modified_pages [C:\Users\ltm14\CLionProjects\vm\vm.c @ 334]:
+003874b0 55              push    ebp
+003874b1 8bec            mov     ebp,esp
+003874b3 83ec10          sub     esp,10h
+003874b6 56              push    esi
+003874b7 833d08583f0000  cmp     dword ptr [vm!modified_page_list+0x8 (003f5808)],0
+003874be 0f844f010000    je      vm!write_modified_pages+0x163 (00387613)
+003874c4 6800583f00      push    offset vm!modified_page_list (003f5800)
+003874c9 e875bcffff      call    vm!ILT+8510(_RemoveHeadList) (00383143)
+0:000> 
+vm!write_modified_pages+0x1e [C:\Users\ltm14\CLionProjects\vm\vm.c @ 337]:
+003874ce 83c404          add     esp,4
+003874d1 8945fc          mov     dword ptr [ebp-4],eax
+003874d4 a108583f00      mov     eax,dword ptr [vm!modified_page_list+0x8 (003f5808)]
+003874d9 83e801          sub     eax,1
+003874dc a308583f00      mov     dword ptr [vm!modified_page_list+0x8 (003f5808)],eax
+003874e1 8b4dfc          mov     ecx,dword ptr [ebp-4]
+003874e4 83c10c          add     ecx,0Ch
+003874e7 51              push    ecx
+0:000> 
+vm!write_modified_pages+0x38 [C:\Users\ltm14\CLionProjects\vm\vm.c @ 340]:
+003874e8 6a01            push    1
+003874ea 8b15e4573f00    mov     edx,dword ptr [vm!modified_write_va (003f57e4)]
+003874f0 52              push    edx
+003874f1 ff1550703f00    call    dword ptr [vm!_imp__MapUserPhysicalPages (003f7050)]
+003874f7 85c0            test    eax,eax
+003874f9 7520            jne     vm!write_modified_pages+0x6b (0038751b)
+003874fb 8b45fc          mov     eax,dword ptr [ebp-4]
+003874fe 8b480c          mov     ecx,dword ptr [eax+0Ch]
+0:000> u
+vm!write_modified_pages+0x51 [C:\Users\ltm14\CLionProjects\vm\vm.c @ 342]:
+00387501 51              push    ecx
+00387502 8b15e4573f00    mov     edx,dword ptr [vm!modified_write_va (003f57e4)]
+00387508 52              push    edx
+00387509 6874413f00      push    offset vm!_CT??_R0?AVexceptionstd <PERF> (vm+0x74174) (003f4174)
+0038750e e8eda4ffff      call    vm!ILT+2555(_printf) (00381a00)
+00387513 83c40c          add     esp,0Ch
+00387516 e9f8000000      jmp     vm!write_modified_pages+0x163 (00387613)
+0038751b a1d8573f00      mov     eax,dword ptr [vm!disc_in_use (003f57d8)]
+0:000> 
+vm!write_modified_pages+0x70 [C:\Users\ltm14\CLionProjects\vm\vm.c @ 347]:
+00387520 8945f8          mov     dword ptr [ebp-8],eax
+00387523 8b4df8          mov     ecx,dword ptr [ebp-8]
+00387526 3b0dcc573f00    cmp     ecx,dword ptr [vm!disc_end (003f57cc)]
+0038752c 7417            je      vm!write_modified_pages+0x95 (00387545)
+0038752e 8b55f8          mov     edx,dword ptr [ebp-8]
+00387531 0fb602          movzx   eax,byte ptr [edx]
+00387534 85c0            test    eax,eax
+00387536 7502            jne     vm!write_modified_pages+0x8a (0038753a)
+0:000> 
+vm!write_modified_pages+0x88 [C:\Users\ltm14\CLionProjects\vm\vm.c @ 352]:
+00387538 eb0b            jmp     vm!write_modified_pages+0x95 (00387545)
+0038753a 8b4df8          mov     ecx,dword ptr [ebp-8]
+0038753d 83c101          add     ecx,1
+00387540 894df8          mov     dword ptr [ebp-8],ecx
+00387543 ebde            jmp     vm!write_modified_pages+0x73 (00387523)
+00387545 8b55f8          mov     edx,dword ptr [ebp-8]
+00387548 2b15d8573f00    sub     edx,dword ptr [vm!disc_in_use (003f57d8)]
+0038754e 8955f4          mov     dword ptr [ebp-0Ch],edx
+0:000> bp 00387545
+0:000> dv disc_spot
+0:000> g
+Breakpoint 2 hit
+eax=00000000 ebx=00000000 ecx=006d14d8 edx=006d14d8 esi=00387d19 edi=00000000
+eip=00387545 esp=0026fb58 ebp=0026fb6c iopl=0         nv up ei pl zr na pe nc
+cs=0023  ss=002b  ds=002b  es=002b  fs=0053  gs=002b             efl=00000246
+vm!write_modified_pages+0x95:
+00387545 8b55f8          mov     edx,dword ptr [ebp-8] ss:002b:0026fb64=006d14d8
+0:000> dv disc_spot
+      disc_spot = 0x006d14d8 ""
+0:000> dc 0x006d14d8
+006d14d8  00000000 00000000 00000000 00000000  ................
+006d14e8  00000000 00000000 00000000 00000000  ................
+006d14f8  00000000 00000000 00000000 00000000  ................
+006d1508  00000000 00000000 00000000 00000000  ................
+006d1518  00000000 00000000 00000000 00000000  ................
+006d1528  00000000 00000000 00000000 00000000  ................
+006d1538  00000000 00000000 00000000 00000000  ................
+006d1548  00000000 00000000 00000000 00000000  ................
+0:000> kn
+ # ChildEBP RetAddr      
+00 0026fb6c 0038769d     vm!write_modified_pages+0x95 [C:\Users\ltm14\CLionProjects\vm\vm.c @ 359] 
+01 0026fb8c 0038776a     vm!find_trim_candidates+0x7d [C:\Users\ltm14\CLionProjects\vm\vm.c @ 257] 
+02 0026fb9c 00387d77     vm!get_free_page+0x2a [C:\Users\ltm14\CLionProjects\vm\vm.c @ 285] 
+03 0026fc24 00387ec8     vm!full_virtual_memory_test+0x3e7 [C:\Users\ltm14\CLionProjects\vm\vm.c @ 629] 
+04 0026fc2c 00388551     vm!main+0x8 [C:\Users\ltm14\CLionProjects\vm\vm.c @ 714] 
+05 (Inline) --------     vm!invoke_main+0x1c [D:\a\_work\1\s\src\vctools\crt\vcstartup\src\startup\exe_common.inl @ 78] 
+06 0026fc74 75ac7d59     vm!__scrt_common_main_seh+0xfa [D:\a\_work\1\s\src\vctools\crt\vcstartup\src\startup\exe_common.inl @ 288] 
+07 0026fc84 7749b79b     KERNEL32!BaseThreadInitThunk+0x19
+08 0026fcdc 7749b71f     ntdll!__RtlUserThreadStart+0x2b
+09 0026fcec 00000000     ntdll!_RtlUserThreadStart+0x1b
+0:000> bp 0038769d
+0:000> g
+Breakpoint 2 hit
+eax=00000000 ebx=00000000 ecx=006d14d9 edx=006d14d9 esi=00000000 edi=00000000
+eip=00387545 esp=0026fb58 ebp=0026fb6c iopl=0         nv up ei pl zr na pe nc
+cs=0023  ss=002b  ds=002b  es=002b  fs=0053  gs=002b             efl=00000246
+vm!write_modified_pages+0x95:
+00387545 8b55f8          mov     edx,dword ptr [ebp-8] ss:002b:0026fb64=006d14d9
+0:000> kn
+ # ChildEBP RetAddr      
+00 0026fb6c 0038769d     vm!write_modified_pages+0x95 [C:\Users\ltm14\CLionProjects\vm\vm.c @ 359] 
+01 0026fb8c 0038776a     vm!find_trim_candidates+0x7d [C:\Users\ltm14\CLionProjects\vm\vm.c @ 257] 
+02 0026fb9c 00387d77     vm!get_free_page+0x2a [C:\Users\ltm14\CLionProjects\vm\vm.c @ 285] 
+03 0026fc24 00387ec8     vm!full_virtual_memory_test+0x3e7 [C:\Users\ltm14\CLionProjects\vm\vm.c @ 629] 
+04 0026fc2c 00388551     vm!main+0x8 [C:\Users\ltm14\CLionProjects\vm\vm.c @ 714] 
+05 (Inline) --------     vm!invoke_main+0x1c [D:\a\_work\1\s\src\vctools\crt\vcstartup\src\startup\exe_common.inl @ 78] 
+06 0026fc74 75ac7d59     vm!__scrt_common_main_seh+0xfa [D:\a\_work\1\s\src\vctools\crt\vcstartup\src\startup\exe_common.inl @ 288] 
+07 0026fc84 7749b79b     KERNEL32!BaseThreadInitThunk+0x19
+08 0026fcdc 7749b71f     ntdll!__RtlUserThreadStart+0x2b
+09 0026fcec 00000000     ntdll!_RtlUserThreadStart+0x1b
+0:000> bl
+     0 e Disable Clear  00387ec0  [C:\Users\ltm14\CLionProjects\vm\vm.c @ 690]     0001 (0001)  0:**** vm!main
+     1 e Disable Clear  003874b0  [C:\Users\ltm14\CLionProjects\vm\vm.c @ 334]     0001 (0001)  0:**** vm!write_modified_pages
+     2 e Disable Clear  00387545  [C:\Users\ltm14\CLionProjects\vm\vm.c @ 359]     0001 (0001)  0:**** vm!write_modified_pages+0x95
+     3 e Disable Clear  0038769d  [C:\Users\ltm14\CLionProjects\vm\vm.c @ 257]     0001 (0001)  0:**** vm!find_trim_candidates+0x7d
+0:000> g
+Breakpoint 2 hit
+eax=00000000 ebx=00000000 ecx=006d14da edx=006d14da esi=00000200 edi=00000000
+eip=00387545 esp=0026fb58 ebp=0026fb6c iopl=0         nv up ei pl zr na pe nc
+cs=0023  ss=002b  ds=002b  es=002b  fs=0053  gs=002b             efl=00000246
+vm!write_modified_pages+0x95:
+00387545 8b55f8          mov     edx,dword ptr [ebp-8] ss:002b:0026fb64=006d14da
+0:000> bd 2
+0:000> g
+Breakpoint 3 hit
+eax=006d4504 ebx=00000000 ecx=00000040 edx=003f57f0 esi=00387d19 edi=00000000
+eip=0038769d esp=0026fb74 ebp=0026fb8c iopl=0         nv up ei pl zr na pe nc
+cs=0023  ss=002b  ds=002b  es=002b  fs=0053  gs=002b             efl=00000246
+vm!find_trim_candidates+0x7d:
+0038769d 8be5            mov     esp,ebp
+0:000> dv
+    pte_pointer = 0x006dc5f8
+0:000> dv modified_page_list
+0:000> ?? modified_page_list
+struct PFN_LIST
+   +0x000 entry            : _LIST_ENTRY [ 0x3f5800 - 0x3f5800 ]
+   +0x008 num_pages        : 0
+0:000> ?? standby_page_list
+struct PFN_LIST
+   +0x000 entry            : _LIST_ENTRY [ 0x6d4590 - 0x6d4504 ]
+   +0x008 num_pages        : 0x40
+0:000> dt PFN 0x6d4590
+vm!PFN
+   +0x000 entry            : _LIST_ENTRY [ 0x6d4400 - 0x3f57f0 ]
+   +0x008 pte              : 0x006d46d8 PTE
+   +0x00c frame_number     : 0x3dbdef
+   +0x010 state            : 1
+0:000> dx -r1 ((vm!PTE *)0x6d46d8)
+((vm!PTE *)0x6d46d8)                 : 0x6d46d8 [Type: PTE *]
+    [+0x000] hardware_format  [Type: VALID_PTE]
+    [+0x000] software_format  [Type: INVALID_PTE]
+0:000> dx -r1 (*((vm!INVALID_PTE *)0x6d46d8))
+(*((vm!INVALID_PTE *)0x6d46d8))                 [Type: INVALID_PTE]
+    [+0x000 ( 0: 0)] valid            : 0x0 [Type: unsigned __int64]
+    [+0x000 (40: 1)] frame_number     : 0x3dbdef [Type: unsigned __int64]
+    [+0x000 (63:41)] disc_index       : 0x0 [Type: unsigned __int64]
+0:000> dt PFN 0x3f57f0
+vm!PFN
+   +0x000 entry            : _LIST_ENTRY [ 0x6d4590 - 0x6d4504 ]
+   +0x008 pte              : 0x00000040 PTE
+   +0x00c frame_number     : 0x6d45f8
+   +0x010 state            : 0x3f5800
+0:000> dx -r1 ((vm!PTE *)0x40)
+((vm!PTE *)0x40)                 : 0x40 [Type: PTE *]
+    [+0x000] hardware_format  [Type: VALID_PTE]
+    [+0x000] software_format  [Type: INVALID_PTE]
+0:000> dx -r1 (*((vm!VALID_PTE *)0x40))
+(*((vm!VALID_PTE *)0x40))                 [Type: VALID_PTE]
+    [+0x000 ( 0: 0)] valid            : Unable to read memory at Address 0x40
+    [+0x000 (40: 1)] frame_number     : Unable to read memory at Address 0x40
+0:000> dx -r1 (*((vm!INVALID_PTE *)0x40))
+(*((vm!INVALID_PTE *)0x40))                 [Type: INVALID_PTE]
+    [+0x000 ( 0: 0)] valid            : Unable to read memory at Address 0x40
+    [+0x000 (40: 1)] frame_number     : Unable to read memory at Address 0x40
+    [+0x000 (63:41)] disc_index       : Unable to read memory at Address 0x40
+0:000> dt PFN 0x6d4400
+vm!PFN
+   +0x000 entry            : _LIST_ENTRY [ 0x6d40e0 - 0x6d4590 ]
+   +0x008 pte              : 0x006d46f0 PTE
+   +0x00c frame_number     : 0x51d4db
+   +0x010 state            : 1
+0:000> dx -r1 ((vm!PTE *)0x6d46f0)
+((vm!PTE *)0x6d46f0)                 : 0x6d46f0 [Type: PTE *]
+    [+0x000] hardware_format  [Type: VALID_PTE]
+    [+0x000] software_format  [Type: INVALID_PTE]
+0:000> dx -r1 (*((vm!INVALID_PTE *)0x6d46f0))
+(*((vm!INVALID_PTE *)0x6d46f0))                 [Type: INVALID_PTE]
+    [+0x000 ( 0: 0)] valid            : 0x0 [Type: unsigned __int64]
+    [+0x000 (40: 1)] frame_number     : 0x51d4db [Type: unsigned __int64]
+    [+0x000 (63:41)] disc_index       : 0x1 [Type: unsigned __int64]
+0:000> ?? disc_in_use
+unsigned char * 0x006d14d8
+ "???"
+0:000> dc 0x006d14d8
+006d14d8  01010101 01010101 01010101 01010101  ................
+006d14e8  01010101 01010101 01010101 01010101  ................
+006d14f8  01010101 01010101 01010101 01010101  ................
+006d1508  01010101 01010101 01010101 01010101  ................
+006d1518  00000000 00000000 00000000 00000000  ................
+006d1528  00000000 00000000 00000000 00000000  ................
+006d1538  00000000 00000000 00000000 00000000  ................
+006d1548  00000000 00000000 00000000 00000000  ................
+0:000> bl
+     0 e Disable Clear  00387ec0  [C:\Users\ltm14\CLionProjects\vm\vm.c @ 690]     0001 (0001)  0:**** vm!main
+     1 e Disable Clear  003874b0  [C:\Users\ltm14\CLionProjects\vm\vm.c @ 334]     0001 (0001)  0:**** vm!write_modified_pages
+     2 d Enable Clear  00387545  [C:\Users\ltm14\CLionProjects\vm\vm.c @ 359]     0001 (0001)  0:**** vm!write_modified_pages+0x95
+     3 e Disable Clear  0038769d  [C:\Users\ltm14\CLionProjects\vm\vm.c @ 257]     0001 (0001)  0:**** vm!find_trim_candidates+0x7d
+     4 e Disable Clear  003877d4  [C:\Users\ltm14\CLionProjects\vm\vm.c @ 295]     0001 (0001)  0:**** vm!get_free_page+0x94
+0:000> bd 3
+0:000> g
+Breakpoint 4 hit
+eax=00000001 ebx=00000000 ecx=006d46d8 edx=fffffffe esi=00387d19 edi=00000000
+eip=003877d4 esp=0026fb94 ebp=0026fb9c iopl=0         nv up ei pl nz na po nc
+cs=0023  ss=002b  ds=002b  es=002b  fs=0053  gs=002b             efl=00000202
+vm!get_free_page+0x94:
+003877d4 8b15f8573f00    mov     edx,dword ptr [vm!standby_page_list+0x8 (003f57f8)] ds:002b:003f57f8=00000040
+0:000> u
+vm!get_free_page+0x94 [C:\Users\ltm14\CLionProjects\vm\vm.c @ 295]:
+003877d4 8b15f8573f00    mov     edx,dword ptr [vm!standby_page_list+0x8 (003f57f8)]
+003877da 83ea01          sub     edx,1
+003877dd 8915f8573f00    mov     dword ptr [vm!standby_page_list+0x8 (003f57f8)],edx
+003877e3 eb05            jmp     vm!get_free_page+0xaa (003877ea)
+003877e5 e95cffffff      jmp     vm!get_free_page+0x6 (00387746)
+003877ea eb05            jmp     vm!get_free_page+0xb1 (003877f1)
+003877ec e955ffffff      jmp     vm!get_free_page+0x6 (00387746)
+003877f1 8b45fc          mov     eax,dword ptr [ebp-4]
+0:000> ?? standby_page_list
+struct PFN_LIST
+   +0x000 entry            : _LIST_ENTRY [ 0x6d4400 - 0x6d4504 ]
+   +0x008 num_pages        : 0x40
+0:000> ?? free_page_list
+struct PFN_LIST
+   +0x000 entry            : _LIST_ENTRY [ 0x3f5810 - 0x3f5810 ]
+   +0x008 num_pages        : 0
+0:000> dv free_page
+      free_page = 0x006d4590
+0:000> dt PFN 0x006d4590
+vm!PFN
+   +0x000 entry            : _LIST_ENTRY [ 0x6d4400 - 0x3f57f0 ]
+   +0x008 pte              : 0x006d46d8 PTE
+   +0x00c frame_number     : 0x3dbdef
+   +0x010 state            : 1
+0:000> dx -r1 ((vm!PTE *)0x6d46d8)
+((vm!PTE *)0x6d46d8)                 : 0x6d46d8 [Type: PTE *]
+    [+0x000] hardware_format  [Type: VALID_PTE]
+    [+0x000] software_format  [Type: INVALID_PTE]
+0:000> dx -r1 (*((vm!INVALID_PTE *)0x6d46d8))
+(*((vm!INVALID_PTE *)0x6d46d8))                 [Type: INVALID_PTE]
+    [+0x000 ( 0: 0)] valid            : 0x0 [Type: unsigned __int64]
+    [+0x000 (40: 1)] frame_number     : 0xffffffff [Type: unsigned __int64]
+    [+0x000 (63:41)] disc_index       : 0x0 [Type: unsigned __int64]
+0:000> g
+(4c20.1698): Access violation - code c0000005 (first chance)
+Breakpoint 4 hit
+eax=00000201 ebx=00000000 ecx=006d46f0 edx=fffffffe esi=00387d19 edi=00000000
+eip=003877d4 esp=0026fb94 ebp=0026fb9c iopl=0         nv up ei pl nz na po nc
+cs=0023  ss=002b  ds=002b  es=002b  fs=0053  gs=002b             efl=00000202
+vm!get_free_page+0x94:
+003877d4 8b15f8573f00    mov     edx,dword ptr [vm!standby_page_list+0x8 (003f57f8)] ds:002b:003f57f8=0000003f
+0:000> kn
+ # ChildEBP RetAddr      
+00 0026fb9c 00387d77     vm!get_free_page+0x94 [C:\Users\ltm14\CLionProjects\vm\vm.c @ 295] 
+01 0026fc24 00387ec8     vm!full_virtual_memory_test+0x3e7 [C:\Users\ltm14\CLionProjects\vm\vm.c @ 629] 
+02 0026fc2c 00388551     vm!main+0x8 [C:\Users\ltm14\CLionProjects\vm\vm.c @ 714] 
+03 (Inline) --------     vm!invoke_main+0x1c [D:\a\_work\1\s\src\vctools\crt\vcstartup\src\startup\exe_common.inl @ 78] 
+04 0026fc74 75ac7d59     vm!__scrt_common_main_seh+0xfa [D:\a\_work\1\s\src\vctools\crt\vcstartup\src\startup\exe_common.inl @ 288] 
+05 0026fc84 7749b79b     KERNEL32!BaseThreadInitThunk+0x19
+06 0026fcdc 7749b71f     ntdll!__RtlUserThreadStart+0x2b
+07 0026fcec 00000000     ntdll!_RtlUserThreadStart+0x1b
+0:000> ?? standby_page_list
+struct PFN_LIST
+   +0x000 entry            : _LIST_ENTRY [ 0x6d40e0 - 0x6d4504 ]
+   +0x008 num_pages        : 0x3f
+0:000> dv free_page
+      free_page = 0x006d4400
+0:000> dv PFN 0x006d4400
+              ^ Extra character error in 'dv PFN 0x006d4400'
+0:000> dt PFN 0x006d4400
+vm!PFN
+   +0x000 entry            : _LIST_ENTRY [ 0x6d40e0 - 0x3f57f0 ]
+   +0x008 pte              : 0x006d46f0 PTE
+   +0x00c frame_number     : 0x51d4db
+   +0x010 state            : 1
+0:000> dx -r1 ((vm!PTE *)0x6d46f0)
+((vm!PTE *)0x6d46f0)                 : 0x6d46f0 [Type: PTE *]
+    [+0x000] hardware_format  [Type: VALID_PTE]
+    [+0x000] software_format  [Type: INVALID_PTE]
+0:000> dx -r1 (*((vm!INVALID_PTE *)0x6d46f0))
+(*((vm!INVALID_PTE *)0x6d46f0))                 [Type: INVALID_PTE]
+    [+0x000 ( 0: 0)] valid            : 0x0 [Type: unsigned __int64]
+    [+0x000 (40: 1)] frame_number     : 0xffffffff [Type: unsigned __int64]
+    [+0x000 (63:41)] disc_index       : 0x1 [Type: unsigned __int64]
+0:000> bp read_page_on_disc
+0:000> bl
+     0 e Disable Clear  00387ec0  [C:\Users\ltm14\CLionProjects\vm\vm.c @ 690]     0001 (0001)  0:**** vm!main
+     1 e Disable Clear  003874b0  [C:\Users\ltm14\CLionProjects\vm\vm.c @ 334]     0001 (0001)  0:**** vm!write_modified_pages
+     2 d Enable Clear  00387545  [C:\Users\ltm14\CLionProjects\vm\vm.c @ 359]     0001 (0001)  0:**** vm!write_modified_pages+0x95
+     3 d Enable Clear  0038769d  [C:\Users\ltm14\CLionProjects\vm\vm.c @ 257]     0001 (0001)  0:**** vm!find_trim_candidates+0x7d
+     4 e Disable Clear  003877d4  [C:\Users\ltm14\CLionProjects\vm\vm.c @ 295]     0001 (0001)  0:**** vm!get_free_page+0x94
+     5 e Disable Clear  00387810  [C:\Users\ltm14\CLionProjects\vm\vm.c @ 307]     0001 (0001)  0:**** vm!read_page_on_disc
+0:000> bd 4
+0:000> g
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+(4c20.1698): Access violation - code c0000005 (first chance)
+Breakpoint 5 hit
+eax=ffffffff ebx=00000000 ecx=ffffff01 edx=006daca8 esi=00387d19 edi=00000000
+eip=00387810 esp=0026fb9c ebp=0026fc24 iopl=0         nv up ei pl zr na pe nc
+cs=0023  ss=002b  ds=002b  es=002b  fs=0053  gs=002b             efl=00000246
+vm!read_page_on_disc:
+00387810 55              push    ebp
+0:000> kn
+ # ChildEBP RetAddr      
+00 0026fb98 00387daa     vm!read_page_on_disc [C:\Users\ltm14\CLionProjects\vm\vm.c @ 307] 
+01 0026fc24 00387ec8     vm!full_virtual_memory_test+0x41a [C:\Users\ltm14\CLionProjects\vm\vm.c @ 635] 
+02 0026fc2c 00388551     vm!main+0x8 [C:\Users\ltm14\CLionProjects\vm\vm.c @ 714] 
+03 (Inline) --------     vm!invoke_main+0x1c [D:\a\_work\1\s\src\vctools\crt\vcstartup\src\startup\exe_common.inl @ 78] 
+04 0026fc74 75ac7d59     vm!__scrt_common_main_seh+0xfa [D:\a\_work\1\s\src\vctools\crt\vcstartup\src\startup\exe_common.inl @ 288] 
+05 0026fc84 7749b79b     KERNEL32!BaseThreadInitThunk+0x19
+06 0026fcdc 7749b71f     ntdll!__RtlUserThreadStart+0x2b
+07 0026fcec 00000000     ntdll!_RtlUserThreadStart+0x1b
+0:000> dv pte
+            pte = 0x006daca8
+0:000> dt PTE 0x006daca8
+Local var @ 0x26fba0 Type PTE*
+0x006daca8 
+   +0x000 hardware_format  : VALID_PTE
+   +0x000 software_format  : INVALID_PTE
+0:000> dx -r1 (*((vm!INVALID_PTE *)0x6daca8))
+(*((vm!INVALID_PTE *)0x6daca8))                 [Type: INVALID_PTE]
+    [+0x000 ( 0: 0)] valid            : 0x0 [Type: unsigned __int64]
+    [+0x000 (40: 1)] frame_number     : 0xffffffff [Type: unsigned __int64]
+    [+0x000 (63:41)] disc_index       : 0x2f [Type: unsigned __int64]
+0:000> bp 00387daa
+0:000> .frame 1
+01 0026fc24 00387ec8     vm!full_virtual_memory_test+0x41a [C:\Users\ltm14\CLionProjects\vm\vm.c @ 635] 
+0:000> dv
+                          pte = 0x006daca8
+                          pfn = 0x006d44f0
+                 pte_contents = struct PTE
+                    allocated = 0n1
+virtual_address_size_in_pages = 0x1000
+                num_pte_bytes = 0x8000
+                            i = 0x7f
+        physical_page_numbers = 0x006d14d8
+                 page_faulted = 0n1
+         physical_page_handle = 0xffffffff
+                            p = 0x00c30000
+                random_number = 0xcd6
+                    privilege = 0n1
+                 arbitrary_va = 0x01906000
+                     free_pfn = 0x006d45e0
+          physical_page_count = 0x40
+         virtual_address_size = 0x1000000
+0:000> dc 0x01906000
+01906000  ???????? ???????? ???????? ????????  ????????????????
+01906010  ???????? ???????? ???????? ????????  ????????????????
+01906020  ???????? ???????? ???????? ????????  ????????????????
+01906030  ???????? ???????? ???????? ????????  ????????????????
+01906040  ???????? ???????? ???????? ????????  ????????????????
+01906050  ???????? ???????? ???????? ????????  ????????????????
+01906060  ???????? ???????? ???????? ????????  ????????????????
+01906070  ???????? ???????? ???????? ????????  ????????????????
+0:000> .frame 0
+00 0026fb98 00387daa     vm!read_page_on_disc [C:\Users\ltm14\CLionProjects\vm\vm.c @ 307] 

@@ -1,0 +1,274 @@
+
+Microsoft (R) Windows Debugger Version 10.0.22621.1778 X86
+Copyright (c) Microsoft Corporation. All rights reserved.
+
+CommandLine: vm_two.exe
+
+************* Path validation summary **************
+Response                         Time (ms)     Location
+Deferred                                       srv*
+Symbol search path is: srv*
+Executable search path is: 
+ModLoad: 00ce0000 00cf0000   vm_two.exe
+ModLoad: 77430000 775df000   ntdll.dll
+ModLoad: 75ab0000 75ba0000   C:\Windows\SysWOW64\KERNEL32.DLL
+ModLoad: 755c0000 75833000   C:\Windows\SysWOW64\KERNELBASE.dll
+ModLoad: 75a30000 75aac000   C:\Windows\SysWOW64\ADVAPI32.dll
+ModLoad: 76f70000 77034000   C:\Windows\SysWOW64\msvcrt.dll
+ModLoad: 75c70000 75cf2000   C:\Windows\SysWOW64\sechost.dll
+ModLoad: 76be0000 76c9a000   C:\Windows\SysWOW64\RPCRT4.dll
+ModLoad: 71890000 718ae000   C:\Windows\SysWOW64\VCRUNTIME140D.dll
+ModLoad: 629c0000 62b65000   C:\Windows\SysWOW64\ucrtbased.dll
+(d68.808): Break instruction exception - code 80000003 (first chance)
+eax=00000000 ebx=00000000 ecx=99b40000 edx=00000000 esi=00bd4ab8 edi=0097a000
+eip=774e78e7 esp=00aff5fc ebp=00aff628 iopl=0         nv up ei pl zr na pe nc
+cs=0023  ss=002b  ds=002b  es=002b  fs=0053  gs=002b             efl=00000246
+ntdll!LdrpDoDebuggerBreak+0x2b:
+774e78e7 cc              int     3
+0:000> bp main
+Bp expression 'main' could not be resolved, adding deferred bp
+*** Bp expression 'main' contains symbols not qualified with module name.
+0:000> g
+(d68.808): Access violation - code c0000005 (first chance)
+First chance exceptions are reported before any exception handling.
+This exception may be expected and handled.
+*** WARNING: Unable to verify checksum for vm_two.exe
+eax=012d00a4 ebx=0097a000 ecx=012d00a4 edx=012d00a4 esi=00affc54 edi=00affccc
+eip=00ce2280 esp=00affc54 ebp=00affce4 iopl=0         nv up ei pl zr na pe nc
+cs=0023  ss=002b  ds=002b  es=002b  fs=0053  gs=002b             efl=00010246
+vm_two!full_virtual_memory_test+0x3e0:
+00ce2280 8911            mov     dword ptr [ecx],edx  ds:002b:012d00a4=????????
+0:000> dd 12d00a4
+012d00a4  ???????? ???????? ???????? ????????
+012d00b4  ???????? ???????? ???????? ????????
+012d00c4  ???????? ???????? ???????? ????????
+012d00d4  ???????? ???????? ???????? ????????
+012d00e4  ???????? ???????? ???????? ????????
+012d00f4  ???????? ???????? ???????? ????????
+012d0104  ???????? ???????? ???????? ????????
+012d0114  ???????? ???????? ???????? ????????
+0:000> kn
+ # ChildEBP RetAddr      
+00 00affce4 00ce2468     vm_two!full_virtual_memory_test+0x3e0 [C:\Users\ltm14\CLionProjects\vm\vm.c @ 605] 
+01 00affcec 00ce31b3     vm_two!main+0x8 [C:\Users\ltm14\CLionProjects\vm\vm.c @ 735] 
+02 00affd0c 00ce3007     vm_two!invoke_main+0x33 [D:\a\_work\1\s\src\vctools\crt\vcstartup\src\startup\exe_common.inl @ 78] 
+03 00affd68 00ce2e9d     vm_two!__scrt_common_main_seh+0x157 [D:\a\_work\1\s\src\vctools\crt\vcstartup\src\startup\exe_common.inl @ 288] 
+04 00affd70 00ce3238     vm_two!__scrt_common_main+0xd [D:\a\_work\1\s\src\vctools\crt\vcstartup\src\startup\exe_common.inl @ 331] 
+05 00affd78 75ac7d59     vm_two!mainCRTStartup+0x8 [D:\a\_work\1\s\src\vctools\crt\vcstartup\src\startup\exe_main.cpp @ 17] 
+06 00affd88 7749b79b     KERNEL32!BaseThreadInitThunk+0x19
+07 00affde0 7749b71f     ntdll!__RtlUserThreadStart+0x2b
+08 00affdf0 00000000     ntdll!_RtlUserThreadStart+0x1b
+0:000> bp get_free_page
+0:000> g
+Breakpoint 1 hit
+eax=00000000 ebx=00000000 ecx=00000000 edx=00000000 esi=00ce2291 edi=00000000
+eip=00ce1c20 esp=00affc50 ebp=00affce4 iopl=0         nv up ei pl zr na pe nc
+cs=0023  ss=002b  ds=002b  es=002b  fs=0053  gs=002b             efl=00000246
+vm_two!get_free_page:
+00ce1c20 55              push    ebp
+0:000> kn
+ # ChildEBP RetAddr      
+00 00affc4c 00ce22ef     vm_two!get_free_page [C:\Users\ltm14\CLionProjects\vm\vm.c @ 326] 
+01 00affce4 00ce2468     vm_two!full_virtual_memory_test+0x44f [C:\Users\ltm14\CLionProjects\vm\vm.c @ 637] 
+02 00affcec 00ce31b3     vm_two!main+0x8 [C:\Users\ltm14\CLionProjects\vm\vm.c @ 735] 
+03 00affd0c 00ce3007     vm_two!invoke_main+0x33 [D:\a\_work\1\s\src\vctools\crt\vcstartup\src\startup\exe_common.inl @ 78] 
+04 00affd68 00ce2e9d     vm_two!__scrt_common_main_seh+0x157 [D:\a\_work\1\s\src\vctools\crt\vcstartup\src\startup\exe_common.inl @ 288] 
+05 00affd70 00ce3238     vm_two!__scrt_common_main+0xd [D:\a\_work\1\s\src\vctools\crt\vcstartup\src\startup\exe_common.inl @ 331] 
+06 00affd78 75ac7d59     vm_two!mainCRTStartup+0x8 [D:\a\_work\1\s\src\vctools\crt\vcstartup\src\startup\exe_main.cpp @ 17] 
+07 00affd88 7749b79b     KERNEL32!BaseThreadInitThunk+0x19
+08 00affde0 7749b71f     ntdll!__RtlUserThreadStart+0x2b
+09 00affdf0 00000000     ntdll!_RtlUserThreadStart+0x1b
+0:000> bp 00ce22ef
+0:000> ?? free_page_list
+struct PFN_LIST
+   +0x000 entry            : _LIST_ENTRY [ 0xbe7058 - 0xbe7544 ]
+   +0x008 num_pages        : 0x40
+0:000> dt PFN 0xbe7058
+vm_two!PFN
+   +0x000 entry            : _LIST_ENTRY [ 0xbe706c - 0xceba70 ]
+   +0x008 pte              : (null) 
+   +0x00c frame_number     : 0x64512f
+   +0x010 state            : 0
+0:000> g
+Breakpoint 2 hit
+eax=00be7058 ebx=00000000 ecx=0000003f edx=00be706c esi=00ce2291 edi=00000000
+eip=00ce22ef esp=00affc54 ebp=00affce4 iopl=0         nv up ei pl zr na pe nc
+cs=0023  ss=002b  ds=002b  es=002b  fs=0053  gs=002b             efl=00000246
+vm_two!full_virtual_memory_test+0x44f:
+00ce22ef 894590          mov     dword ptr [ebp-70h],eax ss:002b:00affc74=cccccccc
+0:000> dt PFN 0xbe7058
+Local var @ 0xaffc74 Type PFN*
+0xcccccccc 
+   +0x000 entry            : _LIST_ENTRY
+   +0x008 pte              : ???? 
+   +0x00c frame_number     : ??
+   +0x010 state            : ??
+Memory read error ccccccdc
+0:000> dt vm_two!_PFN 0xbe7058
+Symbol vm_two!_PFN not found.
+0:000> dd be7058 l8
+00be7058  00be706c 00ceba70 00000000 0064512f
+00be7068  00000004 00be7080 00ceba70 00000000
+0:000> ?? free_page_list
+struct PFN_LIST
+   +0x000 entry            : _LIST_ENTRY [ 0xbe706c - 0xbe7544 ]
+   +0x008 num_pages        : 0x3f
+0:000> dv 
+                                    pte = 0x00be7598
+                                    pfn = 0xcccccccc
+                           pte_contents = struct PTE
+                              allocated = 0n1
+                          num_pte_bytes = 0x8000
+virtual_address_size_in_unsigned_chunks = 0x400000
+                                      i = 0
+                  physical_page_numbers = 0x00be4dc8
+                           page_faulted = 0n1
+                   physical_page_handle = 0xffffffff
+                                      p = 0x012d0000
+                          random_number = 0x29
+                              privilege = 0n1
+                           arbitrary_va = 0x012d00a4
+                               free_pfn = 0x00be7558
+                    physical_page_count = 0x40
+                   virtual_address_size = 0x1000000
+0:000> dd arbitrary_va
+00affcc4  012d00a4 00000000 00affc54 00aff5c0
+00affcd4  00affd58 00ce2d30 1d05bbc8 fffffffe
+00affce4  00affcec 00ce2468 00affd0c 00ce31b3
+00affcf4  00000001 00bdae40 00bdd140 00000001
+00affd04  00bdae40 00bdd140 00affd68 00ce3007
+00affd14  1d64e418 00ce1014 00ce1014 0097a000
+00affd24  00000000 00000000 00000000 00000000
+00affd34  00000000 00000000 00000000 00000000
+0:000> dd 0x012d00a4
+012d00a4  ???????? ???????? ???????? ????????
+012d00b4  ???????? ???????? ???????? ????????
+012d00c4  ???????? ???????? ???????? ????????
+012d00d4  ???????? ???????? ???????? ????????
+012d00e4  ???????? ???????? ???????? ????????
+012d00f4  ???????? ???????? ???????? ????????
+012d0104  ???????? ???????? ???????? ????????
+012d0114  ???????? ???????? ???????? ????????
+0:000> u .
+vm_two!full_virtual_memory_test+0x44f [C:\Users\ltm14\CLionProjects\vm\vm.c @ 637]:
+00ce22ef 894590          mov     dword ptr [ebp-70h],eax
+00ce22f2 eb62            jmp     vm_two!full_virtual_memory_test+0x4b6 (00ce2356)
+00ce22f4 8b4598          mov     eax,dword ptr [ebp-68h]
+00ce22f7 8b559c          mov     edx,dword ptr [ebp-64h]
+00ce22fa b101            mov     cl,1
+00ce22fc e854edffff      call    vm_two!ILT+80(__aullshr) (00ce1055)
+00ce2301 81e2ff000000    and     edx,0FFh
+00ce2307 894580          mov     dword ptr [ebp-80h],eax
+0:000> u
+vm_two!full_virtual_memory_test+0x46a [C:\Users\ltm14\CLionProjects\vm\vm.c @ 639]:
+00ce230a 895584          mov     dword ptr [ebp-7Ch],edx
+00ce230d 837d80ff        cmp     dword ptr [ebp-80h],0FFFFFFFFh
+00ce2311 7517            jne     vm_two!full_virtual_memory_test+0x48a (00ce232a)
+00ce2313 837d8400        cmp     dword ptr [ebp-7Ch],0
+00ce2317 7511            jne     vm_two!full_virtual_memory_test+0x48a (00ce232a)
+00ce2319 8b55a4          mov     edx,dword ptr [ebp-5Ch]
+00ce231c 52              push    edx
+00ce231d e887eeffff      call    vm_two!ILT+420(_read_page_on_disc) (00ce11a9)
+0:000> 
+vm_two!full_virtual_memory_test+0x482 [C:\Users\ltm14\CLionProjects\vm\vm.c @ 643]:
+00ce2322 83c404          add     esp,4
+00ce2325 894590          mov     dword ptr [ebp-70h],eax
+00ce2328 eb2c            jmp     vm_two!full_virtual_memory_test+0x4b6 (00ce2356)
+00ce232a 8b4598          mov     eax,dword ptr [ebp-68h]
+00ce232d 8b559c          mov     edx,dword ptr [ebp-64h]
+00ce2330 b101            mov     cl,1
+00ce2332 e81eedffff      call    vm_two!ILT+80(__aullshr) (00ce1055)
+00ce2337 81e2ff000000    and     edx,0FFh
+0:000> 
+vm_two!full_virtual_memory_test+0x49d [C:\Users\ltm14\CLionProjects\vm\vm.c @ 649]:
+00ce233d 52              push    edx
+00ce233e 50              push    eax
+00ce233f e8bbedffff      call    vm_two!ILT+250(_pfn_from_frame_number) (00ce10ff)
+00ce2344 83c408          add     esp,8
+00ce2347 894590          mov     dword ptr [ebp-70h],eax
+00ce234a 8b4590          mov     eax,dword ptr [ebp-70h]
+00ce234d 50              push    eax
+00ce234e e8daecffff      call    vm_two!ILT+40(_remove_from_list) (00ce102d)
+0:000> 
+vm_two!full_virtual_memory_test+0x4b3 [C:\Users\ltm14\CLionProjects\vm\vm.c @ 650]:
+00ce2353 83c404          add     esp,4
+00ce2356 837d9000        cmp     dword ptr [ebp-70h],0
+00ce235a 750d            jne     vm_two!full_virtual_memory_test+0x4c9 (00ce2369)
+00ce235c 68fcb3ce00      push    offset vm_two!__rtc_tzz <PERF> (vm_two+0xb3fc) (00ceb3fc)
+00ce2361 e82bedffff      call    vm_two!ILT+140(_printf) (00ce1091)
+00ce2366 83c404          add     esp,4
+00ce2369 8b4d90          mov     ecx,dword ptr [ebp-70h]
+00ce236c 8b55a4          mov     edx,dword ptr [ebp-5Ch]
+0:000> 
+vm_two!full_virtual_memory_test+0x4cf [C:\Users\ltm14\CLionProjects\vm\vm.c @ 657]:
+00ce236f 895108          mov     dword ptr [ecx+8],edx
+00ce2372 8b4590          mov     eax,dword ptr [ebp-70h]
+00ce2375 83c00c          add     eax,0Ch
+00ce2378 8bf4            mov     esi,esp
+00ce237a 50              push    eax
+00ce237b 6a01            push    1
+00ce237d 8b4de0          mov     ecx,dword ptr [ebp-20h]
+00ce2380 51              push    ecx
+0:000> 
+vm_two!full_virtual_memory_test+0x4e1 [C:\Users\ltm14\CLionProjects\vm\vm.c @ 662]:
+00ce2381 ff153cc0ce00    call    dword ptr [vm_two!_imp__MapUserPhysicalPages (00cec03c)]
+00ce2387 3bf4            cmp     esi,esp
+00ce2389 e811eeffff      call    vm_two!ILT+410(__RTC_CheckEsp) (00ce119f)
+00ce238e 85c0            test    eax,eax
+00ce2390 7519            jne     vm_two!full_virtual_memory_test+0x50b (00ce23ab)
+00ce2392 8b55c0          mov     edx,dword ptr [ebp-40h]
+00ce2395 8b02            mov     eax,dword ptr [edx]
+00ce2397 50              push    eax
+0:000> bp ce2387
+0:000> g
+Breakpoint 3 hit
+eax=00000001 ebx=00000000 ecx=77421cf3 edx=00000000 esi=00affc54 edi=00000000
+eip=00ce2387 esp=00affc54 ebp=00affce4 iopl=0         nv up ei pl nz na po nc
+cs=0023  ss=002b  ds=002b  es=002b  fs=0053  gs=002b             efl=00000202
+vm_two!full_virtual_memory_test+0x4e7:
+00ce2387 3bf4            cmp     esi,esp
+0:000> dd 0x012d00a4
+012d00a4  00000000 00000000 00000000 00000000
+012d00b4  00000000 00000000 00000000 00000000
+012d00c4  00000000 00000000 00000000 00000000
+012d00d4  00000000 00000000 00000000 00000000
+012d00e4  00000000 00000000 00000000 00000000
+012d00f4  00000000 00000000 00000000 00000000
+012d0104  00000000 00000000 00000000 00000000
+012d0114  00000000 00000000 00000000 00000000
+0:000> dv
+                                    pte = 0x00be7598
+                                    pfn = 0x00be7058
+                           pte_contents = struct PTE
+                              allocated = 0n1
+                          num_pte_bytes = 0x8000
+virtual_address_size_in_unsigned_chunks = 0x400000
+                                      i = 0
+                  physical_page_numbers = 0x00be4dc8
+                           page_faulted = 0n1
+                   physical_page_handle = 0xffffffff
+                                      p = 0x012d0000
+                          random_number = 0x29
+                              privilege = 0n1
+                           arbitrary_va = 0x012d00a4
+                               free_pfn = 0x00be7558
+                    physical_page_count = 0x40
+                   virtual_address_size = 0x1000000
+0:000> dx -r1 ((vm_two!PFN *)0xbe7558)
+((vm_two!PFN *)0xbe7558)                 : 0xbe7558 [Type: PFN *]
+    [+0x000] entry            [Type: _LIST_ENTRY]
+    [+0x008] pte              : 0xabababab [Type: PTE *]
+    [+0x00c] frame_number     : 0xfeeefeee [Type: unsigned long]
+    [+0x010] state            : 0x0 [Type: unsigned long]
+0:000> dd 0x00be7558
+00be7558  fdfdfdfd abababab abababab feeefeee
+00be7568  00000000 00000000 89ff8d04 1c002aa4
+00be7578  00be7038 022dd020 00000000 00000000
+00be7588  00000001 00008000 00000066 fdfdfdfd
+00be7598  00000000 00000000 00000000 00000000
+00be75a8  00000000 00000000 00000000 00000000
+00be75b8  00000000 00000000 00000000 00000000
+00be75c8  00000000 00000000 00000000 00000000
+0:000> dd be7058 l8
+00be7058  00be706c 00ceba70 00be7598 0064512f
+00be7068  00000004 00be7080 00ceba70 00000000
