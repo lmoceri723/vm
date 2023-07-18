@@ -564,3 +564,83 @@ virtual_address_size_in_pages = 0x1000
 01906070  ???????? ???????? ???????? ????????  ????????????????
 0:000> .frame 0
 00 0026fb98 00387daa     vm!read_page_on_disc [C:\Users\ltm14\CLionProjects\vm\vm.c @ 307] 
+0:000> kn
+ # ChildEBP RetAddr      
+00 0026fb98 00387daa     vm!read_page_on_disc [C:\Users\ltm14\CLionProjects\vm\vm.c @ 307] 
+01 0026fc24 00387ec8     vm!full_virtual_memory_test+0x41a [C:\Users\ltm14\CLionProjects\vm\vm.c @ 635] 
+02 0026fc2c 00388551     vm!main+0x8 [C:\Users\ltm14\CLionProjects\vm\vm.c @ 714] 
+03 (Inline) --------     vm!invoke_main+0x1c [D:\a\_work\1\s\src\vctools\crt\vcstartup\src\startup\exe_common.inl @ 78] 
+04 0026fc74 75ac7d59     vm!__scrt_common_main_seh+0xfa [D:\a\_work\1\s\src\vctools\crt\vcstartup\src\startup\exe_common.inl @ 288] 
+05 0026fc84 7749b79b     KERNEL32!BaseThreadInitThunk+0x19
+06 0026fcdc 7749b71f     ntdll!__RtlUserThreadStart+0x2b
+07 0026fcec 00000000     ntdll!_RtlUserThreadStart+0x1b
+0:000> bp 00387daa
+breakpoint 6 redefined
+0:000> bl
+     0 e Disable Clear  00387ec0  [C:\Users\ltm14\CLionProjects\vm\vm.c @ 690]     0001 (0001)  0:**** vm!main
+     1 e Disable Clear  003874b0  [C:\Users\ltm14\CLionProjects\vm\vm.c @ 334]     0001 (0001)  0:**** vm!write_modified_pages
+     2 d Enable Clear  00387545  [C:\Users\ltm14\CLionProjects\vm\vm.c @ 359]     0001 (0001)  0:**** vm!write_modified_pages+0x95
+     3 d Enable Clear  0038769d  [C:\Users\ltm14\CLionProjects\vm\vm.c @ 257]     0001 (0001)  0:**** vm!find_trim_candidates+0x7d
+     4 d Enable Clear  003877d4  [C:\Users\ltm14\CLionProjects\vm\vm.c @ 295]     0001 (0001)  0:**** vm!get_free_page+0x94
+     5 e Disable Clear  00387810  [C:\Users\ltm14\CLionProjects\vm\vm.c @ 307]     0001 (0001)  0:**** vm!read_page_on_disc
+     6 e Disable Clear  00387daa  [C:\Users\ltm14\CLionProjects\vm\vm.c @ 635]     0001 (0001)  0:**** vm!full_virtual_memory_test+0x41a
+0:000> bd 5
+0:000> g
+Breakpoint 6 hit
+eax=006d4504 ebx=00000000 ecx=00005e00 edx=006daca8 esi=00387d19 edi=00000000
+eip=00387daa esp=0026fba0 ebp=0026fc24 iopl=0         nv up ei pl nz na pe nc
+cs=0023  ss=002b  ds=002b  es=002b  fs=0053  gs=002b             efl=00000206
+vm!full_virtual_memory_test+0x41a:
+00387daa 83c404          add     esp,4
+0:000> dv pfn
+            pfn = 0x006d44f0
+0:000> dt PFN 0x006d44f0
+Local var @ 0x26fbf8 Type PFN*
+0x006d44f0 
+   +0x000 entry            : _LIST_ENTRY [ 0x6d4504 - 0x3f57f0 ]
+   +0x008 pte              : 0x006da930 PTE
+   +0x00c frame_number     : 0x67f0e7
+   +0x010 state            : 4
+0:000> dx -r1 ((vm!PTE *)0x6da930)
+((vm!PTE *)0x6da930)                 : 0x6da930 [Type: PTE *]
+    [+0x000] hardware_format  [Type: VALID_PTE]
+    [+0x000] software_format  [Type: INVALID_PTE]
+0:000> dx -r1 (*((vm!VALID_PTE *)0x6da930))
+(*((vm!VALID_PTE *)0x6da930))                 [Type: VALID_PTE]
+    [+0x000 ( 0: 0)] valid            : 0x1 [Type: unsigned __int64]
+    [+0x000 (40: 1)] frame_number     : 0x67f0e7 [Type: unsigned __int64]
+0:000> dc 0x01906000
+01906000  ???????? ???????? ???????? ????????  ????????????????
+01906010  ???????? ???????? ???????? ????????  ????????????????
+01906020  ???????? ???????? ???????? ????????  ????????????????
+01906030  ???????? ???????? ???????? ????????  ????????????????
+01906040  ???????? ???????? ???????? ????????  ????????????????
+01906050  ???????? ???????? ???????? ????????  ????????????????
+01906060  ???????? ???????? ???????? ????????  ????????????????
+01906070  ???????? ???????? ???????? ????????  ????????????????
+0:000> bl
+     0 e Disable Clear  00387ec0  [C:\Users\ltm14\CLionProjects\vm\vm.c @ 690]     0001 (0001)  0:**** vm!main
+     1 e Disable Clear  003874b0  [C:\Users\ltm14\CLionProjects\vm\vm.c @ 334]     0001 (0001)  0:**** vm!write_modified_pages
+     2 d Enable Clear  00387545  [C:\Users\ltm14\CLionProjects\vm\vm.c @ 359]     0001 (0001)  0:**** vm!write_modified_pages+0x95
+     3 d Enable Clear  0038769d  [C:\Users\ltm14\CLionProjects\vm\vm.c @ 257]     0001 (0001)  0:**** vm!find_trim_candidates+0x7d
+     4 d Enable Clear  003877d4  [C:\Users\ltm14\CLionProjects\vm\vm.c @ 295]     0001 (0001)  0:**** vm!get_free_page+0x94
+     5 d Enable Clear  00387810  [C:\Users\ltm14\CLionProjects\vm\vm.c @ 307]     0001 (0001)  0:**** vm!read_page_on_disc
+     6 e Disable Clear  00387daa  [C:\Users\ltm14\CLionProjects\vm\vm.c @ 635]     0001 (0001)  0:**** vm!full_virtual_memory_test+0x41a
+     7 e Disable Clear  00387e74  [C:\Users\ltm14\CLionProjects\vm\vm.c @ 667]     0001 (0001)  0:**** vm!full_virtual_memory_test+0x4e4
+0:000> bd 6
+0:000> g
+Breakpoint 7 hit
+eax=00000001 ebx=00000000 ecx=77421cf3 edx=00000000 esi=00dcf7d1 edi=00000000
+eip=00387e74 esp=0026fba4 ebp=0026fc24 iopl=0         nv up ei pl nz na po nc
+cs=0023  ss=002b  ds=002b  es=002b  fs=0053  gs=002b             efl=00000202
+vm!full_virtual_memory_test+0x4e4:
+00387e74 8b55d0          mov     edx,dword ptr [ebp-30h] ss:002b:0026fbf4=01906000
+0:000> dc 0x01906000
+01906000  01906000 00000000 00000000 00000000  .`..............
+01906010  00000000 00000000 00000000 00000000  ................
+01906020  00000000 00000000 00000000 00000000  ................
+01906030  00000000 00000000 00000000 00000000  ................
+01906040  00000000 00000000 00000000 00000000  ................
+01906050  00000000 00000000 00000000 00000000  ................
+01906060  00000000 00000000 00000000 00000000  ................
+01906070  00000000 00000000 00000000 00000000  ................
