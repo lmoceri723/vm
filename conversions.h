@@ -14,43 +14,48 @@
 #define VIRTUAL_ADDRESS_SIZE        MB(16)
 #define NUMBER_OF_PHYSICAL_PAGES   ((VIRTUAL_ADDRESS_SIZE / PAGE_SIZE) / 64)
 
+typedef struct {
+    ULONG64 valid:1;
+    ULONG64 frame_number:40;
+} VALID_PTE /*, *PVALID_PTE*/;
+
+typedef struct {
+    ULONG64 valid:1;
+    ULONG64 frame_number:40;
+    ULONG64 disc_index:23;
+} INVALID_PTE/*, *PINVALID_PTE*/;
+
+typedef struct {
+    union {
+        VALID_PTE hardware_format;
+        INVALID_PTE software_format;
+    };
+} PTE, *PPTE;
+
+typedef struct {
+    LIST_ENTRY entry;
+    PPTE pte;
+    ULONG_PTR frame_number;
+
+    // States are free, clean, zeroed, active, and modified
+    // The last 3 available numbers represent ages of active pages
+    // LM Fix change to 3 bits
+    ULONG state;
+} PFN, *PPFN;
+
+typedef struct {
+    LIST_ENTRY entry;
+    ULONG_PTR num_pages;
+} PFN_LIST/*, *PPFN_LIST*/;
 
 extern PVOID va_base;
 extern PPTE pte_base;
 extern PPFN pfn_metadata;
 
-PPTE pte_from_va(PVOID virtual_address)
-{
-    ULONG_PTR difference = (ULONG_PTR) virtual_address - (ULONG_PTR) va_base;
-    difference /= PAGE_SIZE;
+extern PPTE pte_from_va(PVOID virtual_address);
 
-    return pte_base + difference;
-}
+extern PVOID va_from_pte(PPTE pte);
 
-PVOID va_from_pte(PPTE pte)
-{
-    // ULONG_PTR difference = (ULONG_PTR) pte - (ULONG_PTR) pte_base;
-
-    ULONG_PTR difference = (ULONG_PTR) (pte - pte_base);
-
-    difference *= PAGE_SIZE;
-
-    return (PVOID) ((ULONG_PTR) va_base + difference);
-}
-
-PPFN pfn_from_frame_number(ULONG64 frame_number)
-{
-    PPFN pfn = pfn_metadata;
-    for (ULONG_PTR i = 0; i < NUMBER_OF_PHYSICAL_PAGES; i++)
-    {
-        if (pfn->frame_number == frame_number)
-        {
-            return pfn;
-        }
-        pfn++;
-    }
-    //LM Fix Fatal error
-    return NULL;
-}
+PPFN pfn_from_frame_number(ULONG64 frame_number);
 
 #endif //VM_TWO_CONVERSIONS_H

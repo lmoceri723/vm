@@ -4,6 +4,8 @@
 #include "macros.h"
 #include "conversions.h"
 
+// sxd av to ignore all page faults when trying to write to arbitrary va
+
 #pragma comment(lib, "advapi32.lib")
 
 #define PAGE_SIZE                   4096
@@ -20,7 +22,7 @@
 // This value is carefully picked as it fits into our field for frame number of our invalid pte format
 #define PAGE_ON_DISC (ULONG_PTR) 0xFFFFFFFFFF
 
-// #define VIRTUAL_ADDRESS_SIZE_IN_UNSIGNED_CHUNKS        (VIRTUAL_ADDRESS_SIZE / sizeof (ULONG_PTR))
+#define VIRTUAL_ADDRESS_SIZE_IN_UNSIGNED_CHUNKS        (VIRTUAL_ADDRESS_SIZE / sizeof (ULONG_PTR))
 
 //
 // Deliberately use a physical page pool that is approximately 1% of the
@@ -35,45 +37,11 @@
 #define MODIFIED 3
 #define ACTIVE 4
 
-typedef struct {
-    ULONG64 valid:1;
-    ULONG64 frame_number:40;
-} VALID_PTE /*, *PVALID_PTE*/;
-
-typedef struct {
-    ULONG64 valid:1;
-    ULONG64 frame_number:40;
-    ULONG64 disc_index:23;
-} INVALID_PTE/*, *PINVALID_PTE*/;
-
-typedef struct {
-    union {
-        VALID_PTE hardware_format;
-        INVALID_PTE software_format;
-    };
-} PTE, *PPTE;
-
-typedef struct {
-    LIST_ENTRY entry;
-    PPTE pte;
-    ULONG_PTR frame_number;
-
-    // States are free, clean, zeroed, active, and modified
-    // The last 3 available numbers represent ages of active pages
-    // LM Fix change to 3 bits
-    ULONG state;
-} PFN, *PPFN;
-
-typedef struct {
-    LIST_ENTRY entry;
-    ULONG_PTR num_pages;
-} PFN_LIST/*, *PPFN_LIST*/;
-
 
 BOOL GetPrivilege (VOID);
 VOID create_page_file(ULONG bytes);
 PPTE pte_from_va(PVOID virtual_address);
-//PVOID va_from_pte(PPTE pte);
+PVOID va_from_pte(PPTE pte);
 PPFN pfn_from_frame_number(ULONG64 frame_number);
 VOID write_modified_pages();
 //VOID clear_standby_list();
@@ -208,7 +176,6 @@ PPTE pte_from_va(PVOID virtual_address)
     return pte_base + difference;
 }
 
-#if 0
 PVOID va_from_pte(PPTE pte)
 {
     // ULONG_PTR difference = (ULONG_PTR) pte - (ULONG_PTR) pte_base;
@@ -219,7 +186,6 @@ PVOID va_from_pte(PPTE pte)
 
     return (PVOID) ((ULONG_PTR) va_base + difference);
 }
-#endif
 
 PPFN pfn_from_frame_number(ULONG64 frame_number)
 {
@@ -254,6 +220,16 @@ VOID clear_standby_list()
 // This puts a page on the modified list
 VOID trim(PPFN page)
 {
+    PVOID user_va = va_from_pte(page->pte);
+
+    // The user va is still mapped, we need to unmap it here to stop the user from changing it
+    // Any attempt to modify this va will lead to a page fault so that we will not be able to have stale data
+    if (MapUserPhysicalPages (user_va, 1, NULL) == FALSE) {
+
+        printf ("full_virtual_memory_test : could not unmap VA %p to page %lX\n", user_va, page->frame_number);
+        return;
+    }
+
     page->state = MODIFIED;
     page->pte->hardware_format.valid = 0;
 
@@ -333,7 +309,7 @@ PPFN read_page_on_disc(PPTE pte)
 
     if (MapUserPhysicalPages (modified_read_va, 1, &free_page->frame_number) == FALSE) {
 
-        printf ("full_virtual_memory_test : could not map VA %p to page %lX\n", modified_write_va, free_page->frame_number);
+        printf ("full_virtual_memory_test : could not map VA %p to page %lX\n", modified_read_va, free_page->frame_number);
         return NULL;
     }
 
@@ -343,7 +319,7 @@ PPFN read_page_on_disc(PPTE pte)
 
     if (MapUserPhysicalPages (modified_read_va, 1, NULL) == FALSE) {
 
-        printf ("full_virtual_memory_test : could not unmap VA %p to page %lX\n", modified_write_va, free_page->frame_number);
+        printf ("full_virtual_memory_test : could not unmap VA %p to page %lX\n", modified_read_va, free_page->frame_number);
         return NULL;
     }
 
@@ -432,7 +408,7 @@ VOID full_virtual_memory_test (VOID)
     PULONG_PTR physical_page_numbers;
     HANDLE physical_page_handle;
     ULONG_PTR virtual_address_size;
-    ULONG_PTR virtual_address_size_in_unsigned_chunks;
+    ULONG_PTR virtual_address_size_in_pages;
 
     //
     // Allocate the physical pages that we will be managing.
@@ -532,8 +508,8 @@ VOID full_virtual_memory_test (VOID)
 
     virtual_address_size &= ~(PAGE_SIZE - 1);
 
-    virtual_address_size_in_unsigned_chunks =
-                        virtual_address_size / sizeof (ULONG_PTR);
+    virtual_address_size_in_pages =
+                        virtual_address_size / PAGE_SIZE;
 
     va_base = VirtualAlloc (NULL,
                                 virtual_address_size,
@@ -584,8 +560,6 @@ VOID full_virtual_memory_test (VOID)
     // Now perform random accesses.
     //
 
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "UnreachableCode"
     for (i = 0; i < MB (1); i++) {
 
         //
@@ -604,9 +578,9 @@ VOID full_virtual_memory_test (VOID)
         //
 
         // randex
-        random_number = rand ();
+        random_number = rand();
 
-        random_number %= virtual_address_size_in_unsigned_chunks;
+        random_number %= virtual_address_size_in_pages;
 
         //
         // Write the virtual address into each page.  If we need to
@@ -615,7 +589,7 @@ VOID full_virtual_memory_test (VOID)
 
         page_faulted = FALSE;
 
-        arbitrary_va = p + random_number;
+        arbitrary_va = p + (random_number * PAGE_SIZE) / sizeof(ULONG_PTR);
 
         __try {
 
@@ -704,7 +678,6 @@ VOID full_virtual_memory_test (VOID)
 
         }
     }
-#pragma clang diagnostic pop
 
     printf ("full_virtual_memory_test : finished accessing %u random virtual addresses\n", i);
 
