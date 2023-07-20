@@ -45,16 +45,12 @@ typedef struct {
 typedef struct {
     LIST_ENTRY entry;
     ULONG_PTR num_pages;
-} PFN_LIST/*, *PPFN_LIST*/;
-
-extern PVOID va_base;
-extern PPTE pte_base;
-extern PPFN pfn_metadata;
+} PFN_LIST, *PPFN_LIST;
 
 extern PPTE pte_from_va(PVOID virtual_address);
 
 extern PVOID va_from_pte(PPTE pte);
 
-PPFN pfn_from_frame_number(ULONG64 frame_number);
+extern PPFN pfn_from_frame_number(ULONG64 frame_number);
 
 #endif //VM_TWO_CONVERSIONS_H
