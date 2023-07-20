@@ -11,8 +11,7 @@
 
 #define PAGE_SIZE                   4096
 #define MB(x)                       ((x) * 1024 * 1024)
-#define VIRTUAL_ADDRESS_SIZE        MB(16)
-#define NUMBER_OF_PHYSICAL_PAGES   ((VIRTUAL_ADDRESS_SIZE / PAGE_SIZE) / 64)
+#define GB(x)                       (MB (x) * 1024)
 
 typedef struct {
     ULONG64 valid:1;

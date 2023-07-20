@@ -60,8 +60,6 @@ Flink->Blink = ListHead;
 return Entry;
 }
 
-
-
 FORCEINLINE
         PLIST_ENTRY
 RemoveTailList(
@@ -77,7 +75,6 @@ ListHead->Blink = Blink;
 Blink->Flink = ListHead;
 return Entry;
 }
-
 
 FORCEINLINE
         VOID
