@@ -60,7 +60,7 @@ BOOLEAN full_virtual_memory_test (VOID) {
 
 
         if (page_faulted) {
-
+            printf("0");
             fault_handled = page_fault_handler(arbitrary_va);
             if (fault_handled == FALSE)
             {
@@ -68,6 +68,10 @@ BOOLEAN full_virtual_memory_test (VOID) {
             }
 
             *arbitrary_va = (ULONG_PTR) arbitrary_va;
+        }
+        else
+        {
+            printf(".");
         }
     }
 

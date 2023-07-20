@@ -107,8 +107,8 @@ ULONG_PTR create_page_file(ULONG_PTR bytes)
         return 0;
     }
 
-    // LM Fix merge these possibly
-    ULONG_PTR size = bytes / PAGE_SIZE;
+    // LM Fix merge mallocs to be one single malloc possibly
+    ULONG_PTR size = bytes / PAGE_SIZE/* / 8*/;
     disc_in_use = malloc(size);
     if (disc_in_use == NULL)
     {

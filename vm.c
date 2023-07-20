@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <windows.h>
+#include <time.h>
 #include "macros.h"
 #include "conversions.h"
 #include "system.h"
@@ -202,6 +203,40 @@ PPFN read_page_on_disc(PPTE pte)
     return free_page;
 }
 
+ULONG get_disc_index(VOID)
+{
+    PUCHAR disc_spot = disc_in_use;
+    while (disc_spot != disc_end)
+    {
+        if (*disc_spot != 0xFF)
+        {
+            break;
+        }
+        disc_spot++;
+    }
+
+    if (disc_spot == disc_end)
+    {
+        // LM Fix zero may not be valid here to correspond to an error
+        return 0;
+    }
+    ULONG disc_index = 0;
+    UCHAR spot_cluster = *disc_spot;
+    while (TRUE)
+    {
+        // If the low bit is a one then the spot is in use, if not it is free to use and we break
+        if ((spot_cluster & 0x1) == 0)
+        {
+            // set the bit and return right disc index at the end of function
+            break;
+        }
+
+        disc_index++;
+        // Throws away the rightmost lowest bit, shifts to the right and zero fills the high bit
+        spot_cluster = spot_cluster>>1;
+    }
+}
+
 VOID write_modified_pages()
 {
     // LM fix implement a disc free space count global and use it to avoid iteration while checking
@@ -215,11 +250,6 @@ VOID write_modified_pages()
             printf ("full_virtual_memory_test : could not map VA %p to page %lX\n", modified_write_va, pfn->frame_number);
             return;
         }
-
-        // Problem 2: Do not give out more virtual addresses than we have memory + disc space
-        // One less = place to juggle with
-        // Problem 3: Undisclosed bug
-
 
         // LM Fix what if all spots are filled
         PUCHAR disc_spot = disc_in_use;
@@ -376,17 +406,25 @@ main (int argc, char** argv)
      store, bringing them back from backing store, protecting them, etc.
 
      This is where we can be as creative as we like, the sky's the limit ! */
+    ULONG start_time;
+    ULONG end_time;
+    ULONG time_elapsed;
 
     if (initialize_system() == FALSE) {
         printf("system not initialized");
         return 1;
     }
 
+    start_time = GetTickCount();
     if (full_virtual_memory_test() == FALSE)
     {
         // LM Fix print
         return 1;
     }
+
+    end_time = GetTickCount();
+    time_elapsed = end_time - start_time;
     printf("full_virtual_memory_test : finished accessing random virtual addresses\n");
+    printf("finished in %lu ms (%lu s)", time_elapsed, time_elapsed / 1000);
     return 0;
 }
