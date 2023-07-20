@@ -320,6 +320,9 @@ BOOLEAN initialize_system (VOID) {
 // LM Fix make this free everything
 BOOLEAN deinitialize_system (VOID)
 {
+    // Now that we're done with our memory we can be a good citizen and free it.
+    VirtualFree(p, 0, MEM_RELEASE);
+
     // ONLY FREE WHAT I HAVE MALLOCED
     free((PVOID) physical_page_count);
     free((PVOID) disc_page_count);

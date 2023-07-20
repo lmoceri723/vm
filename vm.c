@@ -172,7 +172,6 @@ PPFN get_free_page(VOID) {
         }
         break;
     }
-
         free_page->state = ACTIVE;
         return free_page;
 }
@@ -197,6 +196,9 @@ PPFN read_page_on_disc(PPTE pte)
         return NULL;
     }
 
+    // Set the char at disc_index in disc in use to be 0 to avoid leaking disc space and cause a clog up of the machine
+    PUCHAR disc_spot = disc_in_use + pte->software_format.disc_index;
+    *disc_spot = 0;
     return free_page;
 }
 
@@ -268,6 +270,7 @@ VOID write_modified_pages()
 
 VOID remove_from_list(PPFN pfn)
 {
+    // Removes the pfn from whatever list its on, does not matter which list it is
     PLIST_ENTRY prev_entry = pfn->entry.Blink;
     PLIST_ENTRY next_entry = pfn->entry.Flink;
 
@@ -280,6 +283,8 @@ VOID remove_from_list(PPFN pfn)
     }
     else
     {
+        PUCHAR disc_spot = disc_in_use + pfn->pte->software_format.disc_index;
+        *disc_spot = 0;
         standby_page_list.num_pages--;
     }
     pfn->state = ACTIVE;
@@ -310,6 +315,7 @@ BOOLEAN page_fault_handler(PVOID arbitrary_va)
     } else if (pte_contents.software_format.frame_number == PAGE_ON_DISC) {
     // This virtual address has been previously accessed and its contents now exclusively exists on disc
     // It has been trimmed, written to disc, and its physical page has been reused.
+    // Page on disc gets wiped out when we rewrite the frame number below
         pfn = read_page_on_disc(pte);
     } else {
     // This is an address that has been accessed and trimmed
@@ -346,15 +352,6 @@ PVOID allocate_memory(PULONG_PTR num_bytes)
     return va_base;
 }
 
-#if 0
-        // LM Fix move
-        printf("full_virtual_memory_test : finished accessing %u random virtual addresses\n", i);
-
-        //LM Fix terminate system
-        // Now that we're done with our memory we can be a good citizen and free it.
-        VirtualFree(p, 0, MEM_RELEASE);
-#endif
-
 int 
 main (int argc, char** argv)
 {
@@ -390,5 +387,6 @@ main (int argc, char** argv)
         // LM Fix print
         return 1;
     }
+    printf("full_virtual_memory_test : finished accessing random virtual addresses\n");
     return 0;
 }
