@@ -6,12 +6,8 @@
 #include "conversions.h"
 #include "system.h"
 
-// sxd av to ignore all page faults when trying to write to arbitrary va
-// Second chance is an actual exception separate from a page fault
-
 #pragma comment(lib, "advapi32.lib")
 
-// #define VIRTUAL_ADDRESS_SIZE_IN_UNSIGNED_CHUNKS        (VIRTUAL_ADDRESS_SIZE / sizeof (ULONG_PTR))
 
 PPTE pte_from_va(PVOID virtual_address);
 PVOID va_from_pte(PPTE pte);
@@ -24,6 +20,7 @@ VOID trim(PPFN page);
 PPFN get_free_page(VOID);
 PPFN read_page_on_disc(PPTE pte);
 VOID remove_from_list(PPFN pfn);
+VOID free_disc_space(ULONG64 disc_index);
 
 ULONG_PTR virtual_address_size;
 ULONG_PTR physical_page_count;
@@ -197,9 +194,9 @@ PPFN read_page_on_disc(PPTE pte)
         return NULL;
     }
 
+    // LM Fix adapt to new system of using bits
     // Set the char at disc_index in disc in use to be 0 to avoid leaking disc space and cause a clog up of the machine
-    PUCHAR disc_spot = disc_in_use + pte->software_format.disc_index;
-    *disc_spot = 0;
+    free_disc_space(pte->software_format.disc_index);
     return free_page;
 }
 
@@ -218,7 +215,7 @@ ULONG get_disc_index(VOID)
     if (disc_spot == disc_end)
     {
         // LM Fix zero may not be valid here to correspond to an error
-        return 0;
+        return MAXULONG32;
     }
     ULONG disc_index = 0;
     UCHAR spot_cluster = *disc_spot;
@@ -228,13 +225,28 @@ ULONG get_disc_index(VOID)
         if ((spot_cluster & 0x1) == 0)
         {
             // set the bit and return right disc index at the end of function
+            *disc_spot |= (1<<disc_index);
             break;
         }
-
         disc_index++;
         // Throws away the rightmost lowest bit, shifts to the right and zero fills the high bit
         spot_cluster = spot_cluster>>1;
     }
+
+    return (disc_spot - disc_in_use) * 8 + disc_index;
+}
+
+VOID free_disc_space(ULONG64 disc_index)
+{
+    PUCHAR disc_spot = disc_in_use + disc_index / 8;
+    // Read in the byte
+    UCHAR spot_cluster = *disc_spot;
+    // We set the bit to be zero by comparing it using an and with all 1s except for a zero at the place we want to set as zero
+    // For example 11011101 & 11111011
+    // The zero is the bit we change, all others are preserved
+    spot_cluster &= ~(1<<(disc_index % 8));
+    // Write the byte out
+    *disc_spot = spot_cluster;
 }
 
 VOID write_modified_pages()
@@ -252,17 +264,9 @@ VOID write_modified_pages()
         }
 
         // LM Fix what if all spots are filled
-        PUCHAR disc_spot = disc_in_use;
-        while (disc_spot != disc_end)
-        {
-            if (*disc_spot == 0)
-            {
-                break;
-            }
-            disc_spot++;
-        }
+        ULONG disc_index = get_disc_index();
 
-        if (disc_spot == disc_end)
+        if (disc_index == MAXULONG32)
         {
             if (MapUserPhysicalPages (modified_write_va, 1, NULL) == FALSE) {
 
@@ -277,12 +281,9 @@ VOID write_modified_pages()
         }
 
         PVOID actual_space;
-        // LM Fix edit software format in the pte to have a field for disc address
-        ULONG disc_index = disc_spot - disc_in_use;
         actual_space = (PVOID) ((ULONG_PTR) disc_space + (disc_index * PAGE_SIZE));
 
         memcpy(actual_space, modified_write_va, PAGE_SIZE);
-        *disc_spot = 1;
 
         pfn->pte->software_format.disc_index = disc_index;
 
@@ -313,14 +314,12 @@ VOID remove_from_list(PPFN pfn)
     }
     else
     {
-        PUCHAR disc_spot = disc_in_use + pfn->pte->software_format.disc_index;
-        *disc_spot = 0;
+        // LM Fix adapt to new system of using bits
+        free_disc_space(pfn->pte->software_format.disc_index);
         standby_page_list.num_pages--;
     }
     pfn->state = ACTIVE;
 }
-
-
 
 BOOLEAN page_fault_handler(PVOID arbitrary_va)
 {

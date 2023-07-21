@@ -1,0 +1,18 @@
+/********************** TERMINAL **********************/
+Change directory to the file
+cd C:\Users\ltm14\CLionProjects\vm
+
+Compile with all files
+cl -Zi -o vm.exe vm.c userapp.c initialize.c
+
+Debug
+windbg vm.exe
+
+Run
+vm
+/*********************** DEBUG ************************/
+// LM FIX PUT A CHEAT SHEET FOR COMMON DEBUGGER COMMANDS
+
+Ignore page fault exceptions
+sxd av
+// Second chance is a real exception

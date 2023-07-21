@@ -4,7 +4,6 @@
 #include "conversions.h"
 #include "system.h"
 
-
 #pragma comment(lib, "advapi32.lib")
 
 BOOLEAN full_virtual_memory_test (VOID) {
@@ -22,7 +21,8 @@ BOOLEAN full_virtual_memory_test (VOID) {
 
     virtual_address_size_in_pages = num_bytes / PAGE_SIZE;
 
-    for (i = 0; i < MB (1); i++) {
+    for (i = 0; i < MB(1) / 10; i++)
+    {
 
         // Randomly access different portions of the virtual address
         // space we obtained above.
@@ -60,7 +60,6 @@ BOOLEAN full_virtual_memory_test (VOID) {
 
 
         if (page_faulted) {
-            printf("0");
             fault_handled = page_fault_handler(arbitrary_va);
             if (fault_handled == FALSE)
             {
@@ -68,10 +67,6 @@ BOOLEAN full_virtual_memory_test (VOID) {
             }
 
             *arbitrary_va = (ULONG_PTR) arbitrary_va;
-        }
-        else
-        {
-            printf(".");
         }
     }
 
