@@ -99,6 +99,13 @@ BOOL GetPrivilege (VOID)
 
 ULONG_PTR create_page_file(ULONG_PTR bytes)
 {
+    // When we search for free bits, we use MAXULONG32 to say there is no free bit
+    // So our size cannot be greater than it
+    if (bytes >= MAXULONG32 * PAGE_SIZE)
+    {
+        // LM Fix error
+        return 0;
+    }
     // LM Fix be more sophisticated by scaling disc size down while malloc fails
     // Reduce bytes in the loop
     disc_space = malloc(bytes);

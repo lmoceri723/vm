@@ -23,7 +23,6 @@ BOOLEAN full_virtual_memory_test (VOID) {
 
     for (i = 0; i < MB(1) / 10; i++)
     {
-
         // Randomly access different portions of the virtual address
         // space we obtained above.
         //

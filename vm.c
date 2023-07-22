@@ -8,7 +8,6 @@
 
 #pragma comment(lib, "advapi32.lib")
 
-
 PPTE pte_from_va(PVOID virtual_address);
 PVOID va_from_pte(PPTE pte);
 PPFN pfn_from_frame_number(ULONG64 frame_number);
@@ -194,12 +193,12 @@ PPFN read_page_on_disc(PPTE pte)
         return NULL;
     }
 
-    // LM Fix adapt to new system of using bits
     // Set the char at disc_index in disc in use to be 0 to avoid leaking disc space and cause a clog up of the machine
     free_disc_space(pte->software_format.disc_index);
     return free_page;
 }
 
+// LM Fix make the two functions below work with a ULONG64 instead of a char
 ULONG get_disc_index(VOID)
 {
     PUCHAR disc_spot = disc_in_use;
@@ -214,7 +213,6 @@ ULONG get_disc_index(VOID)
 
     if (disc_spot == disc_end)
     {
-        // LM Fix zero may not be valid here to correspond to an error
         return MAXULONG32;
     }
     ULONG disc_index = 0;
