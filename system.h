@@ -18,6 +18,7 @@ extern ULONG_PTR virtual_address_size;
 extern PFN_LIST free_page_list;
 extern PFN_LIST modified_page_list;
 extern PFN_LIST standby_page_list;
+extern PFN_LIST active_page_list[8];
 extern PPTE pte_base;
 extern PPTE pte_end;
 extern PVOID va_base;
@@ -30,7 +31,7 @@ extern PPFN pfn_metadata;
 
 extern BOOLEAN initialize_system(VOID);
 extern PVOID allocate_memory(PULONG_PTR num_bytes);
-extern BOOLEAN page_fault_handler(PVOID arbitrary_va);
+extern BOOLEAN page_fault_handler(BOOLEAN faulted, PVOID arbitrary_va);
 extern BOOLEAN full_virtual_memory_test(VOID);
 
 #endif //VM_TWO_SYSTEM_H

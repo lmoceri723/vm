@@ -50,7 +50,9 @@ BOOLEAN full_virtual_memory_test (VOID) {
 
         __try
         {
+            // LM Fix if this is accessed, we now need to reset age
             *arbitrary_va = (ULONG_PTR) arbitrary_va;
+            page_fault_handler(FALSE, arbitrary_va);
         }
         __except(EXCEPTION_EXECUTE_HANDLER)
         {
@@ -59,7 +61,7 @@ BOOLEAN full_virtual_memory_test (VOID) {
 
 
         if (page_faulted) {
-            fault_handled = page_fault_handler(arbitrary_va);
+            fault_handled = page_fault_handler(TRUE, arbitrary_va);
             if (fault_handled == FALSE)
             {
                 return FALSE;

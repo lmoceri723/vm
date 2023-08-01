@@ -137,6 +137,13 @@ VOID initialize_page_lists(VOID)
 
     InitializeListHead(&standby_page_list.entry);
     standby_page_list.num_pages = 0;
+
+    for (i = 0; i < 8; i++)
+    {
+        InitializeListHead(&active_page_list[i].entry);
+        active_page_list[i].num_pages = 0;
+    }
+
 }
 
 VOID populate_free_list(VOID)

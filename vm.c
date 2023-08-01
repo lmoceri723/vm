@@ -27,6 +27,8 @@ ULONG_PTR disc_page_count;
 PFN_LIST free_page_list;
 PFN_LIST modified_page_list;
 PFN_LIST standby_page_list;
+// LM Fix #define this 8 later
+PFN_LIST active_page_list[8];
 PPTE pte_base;
 PPTE pte_end;
 PVOID va_base;
@@ -36,6 +38,8 @@ PVOID disc_space;
 PUCHAR disc_in_use;
 PUCHAR disc_end;
 PPFN pfn_metadata;
+
+
 
 
 PPTE pte_from_va(PVOID virtual_address)
@@ -100,6 +104,7 @@ VOID trim(PPFN page)
         printf ("full_virtual_memory_test : could not unmap VA %p to page %lX\n", user_va, page->frame_number);
         return;
     }
+    remove_from_list(page);
 
     page->state = MODIFIED;
     page->pte->hardware_format.valid = 0;
@@ -108,21 +113,55 @@ VOID trim(PPFN page)
     modified_page_list.num_pages++;
 }
 
+VOID age_pages()
+{
+    PLIST_ENTRY flink_entry;
+    PPFN pfn;
+
+    for (unsigned i = 0; i < 8; i++)
+    {
+        flink_entry = active_page_list[i].entry.Flink;
+        while (flink_entry != &active_page_list[i].entry)
+        {
+            // We deliberately capture the Flink now
+            // The page might enter the modified list and be assigned a new one
+            pfn = CONTAINING_RECORD(flink_entry, PFN, entry);
+            flink_entry = pfn->entry.Flink;
+
+            if (pfn->age == 7)
+            {
+                trim(pfn);
+            }
+            else
+            {
+                remove_from_list(pfn);
+                pfn->age++;
+                InsertTailList(&active_page_list[i+1].entry, &pfn->entry);
+            }
+        }
+    }
+}
+
 VOID find_trim_candidates()
 {
-    PPTE pte_pointer = pte_base;
-
-    while (pte_pointer != pte_end)
+    while(modified_page_list.num_pages == 0)
     {
-        PTE contents = *pte_pointer;
-        if (contents.hardware_format.valid)
-        {
-            // We have a candidate, now we need a pfn to trim it
-            PPFN pfn = pfn_from_frame_number(contents.hardware_format.frame_number);
-            trim(pfn);
-        }
-        pte_pointer++;
+        age_pages();
     }
+
+//    PPTE pte_pointer = pte_base;
+//
+//    while (pte_pointer != pte_end)
+//    {
+//        PTE contents = *pte_pointer;
+//        if (contents.hardware_format.valid)
+//        {
+//            // We have a candidate, now we need a pfn to trim it
+//            PPFN pfn = pfn_from_frame_number(contents.hardware_format.frame_number);
+//            trim(pfn);
+//        }
+//        pte_pointer++;
+//    }
 
     write_modified_pages();
 }
@@ -143,7 +182,6 @@ VOID age(PPFN page)
 #endif
 
 PPFN get_free_page(VOID) {
-    // LM Fix: Find a way to pick a better candidate
 
     PPFN free_page;
     while (TRUE) {
@@ -310,21 +348,20 @@ VOID remove_from_list(PPFN pfn)
     {
         modified_page_list.num_pages--;
     }
+    else if (pfn->state == ACTIVE)
+    {
+        active_page_list[pfn->age].num_pages--;
+    }
     else
     {
-        // LM Fix adapt to new system of using bits
         free_disc_space(pfn->pte->software_format.disc_index);
         standby_page_list.num_pages--;
     }
-    pfn->state = ACTIVE;
 }
 
-BOOLEAN page_fault_handler(PVOID arbitrary_va)
+BOOLEAN page_fault_handler(BOOLEAN faulted, PVOID arbitrary_va)
 {
-    // Connect the virtual address now - if that succeeds then
-    // we'll be able to access it from now on.
-
-    // we need to get the pte from arbitrary va f(va)->pte
+    // This now needs to be done whether a fault occurs or not in order to update a pages age
     PPTE pte = pte_from_va(arbitrary_va);
     if (pte == NULL)
     {
@@ -332,6 +369,19 @@ BOOLEAN page_fault_handler(PVOID arbitrary_va)
         return FALSE;
     }
     PTE pte_contents = *pte;
+
+    // If this page has not faulted we still need to update its age and return
+    if (faulted == FALSE)
+    {
+        PPFN pfn;
+        pfn = pfn_from_frame_number(pte_contents.software_format.frame_number);
+        pfn-> age = 0;
+        return TRUE;
+    }
+    // Connect the virtual address now - if that succeeds then
+    // we'll be able to access it from now on.
+
+    // we need to get the pte from arbitrary va f(va)->pte
 
     PPFN pfn;
 
@@ -358,7 +408,10 @@ BOOLEAN page_fault_handler(PVOID arbitrary_va)
     pte->hardware_format.frame_number = pfn->frame_number;
     pte->hardware_format.valid = 1;
     pfn->pte = pte;
-
+    pfn->age = 0;
+    pfn->state = ACTIVE;
+    InsertTailList(&active_page_list[pfn->age].entry, &pfn->entry);
+    active_page_list[pfn->age].num_pages++;
 
     if (MapUserPhysicalPages(arbitrary_va, 1, &pfn->frame_number) == FALSE) {
 

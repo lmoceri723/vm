@@ -37,9 +37,10 @@ typedef struct {
     ULONG_PTR frame_number;
 
     // States are free, clean, zeroed, active, and modified
-    // The last 3 available numbers represent ages of active pages
-    // LM Fix change to 3 bits
+    // LM Fix change both to 3 bits
     ULONG state;
+    // Age can range from 0 to 7 with a higher age correlating to a higher need to be trimmed
+    ULONG age;
 } PFN, *PPFN;
 
 typedef struct {

@@ -16,3 +16,9 @@ vm
 Ignore page fault exceptions
 sxd av
 // Second chance is a real exception
+
+See list of threads
+~
+
+Switch to NUMBER thread
+~NUMBERs
