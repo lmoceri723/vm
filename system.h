@@ -1,7 +1,7 @@
 #ifndef VM_TWO_SYSTEM_H
 #define VM_TWO_SYSTEM_H
 
-#include "conversions.h"
+#include "structs.h"
 
 // This value is carefully picked as it fits into our field for frame number of our invalid pte format
 #define PAGE_ON_DISC (ULONG_PTR) 0xFFFFFFFFFF
@@ -33,5 +33,6 @@ extern BOOLEAN initialize_system(VOID);
 extern PVOID allocate_memory(PULONG_PTR num_bytes);
 extern BOOLEAN page_fault_handler(BOOLEAN faulted, PVOID arbitrary_va);
 extern BOOLEAN full_virtual_memory_test(VOID);
+extern PPFN pfn_from_frame_number(ULONG64 frame_number);
 
 #endif //VM_TWO_SYSTEM_H

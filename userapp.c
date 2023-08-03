@@ -1,18 +1,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <windows.h>
-#include "conversions.h"
+#include "structs.h"
 #include "system.h"
 
 #pragma comment(lib, "advapi32.lib")
 
 BOOLEAN full_virtual_memory_test (VOID) {
+
     ULONG i;
     PULONG_PTR arbitrary_va;
     ULONG random_number;
     BOOL page_faulted;
-    BOOL fault_handled;
 
+    ULONG_PTR num_addresses;
     PULONG_PTR p;
     ULONG_PTR num_bytes;
     ULONG_PTR virtual_address_size_in_pages;
@@ -21,7 +22,9 @@ BOOLEAN full_virtual_memory_test (VOID) {
 
     virtual_address_size_in_pages = num_bytes / PAGE_SIZE;
 
-    for (i = 0; i < MB(1) / 10; i++)
+
+    num_addresses = MB(1);
+    for (i = 0; i < num_addresses; i++)
     {
         // Randomly access different portions of the virtual address
         // space we obtained above.
@@ -36,40 +39,35 @@ BOOLEAN full_virtual_memory_test (VOID) {
         // valid PTE and proceed to obtain the physical contents
         // (without faulting to the operating system again).
 
-        // randex
         random_number = rand();
 
         random_number %= virtual_address_size_in_pages;
 
-        // Write the virtual address into each page.  If we need to
-        // debug anything, we'll be able to see these in the pages.
-
+        // Write the virtual address into each page
         page_faulted = FALSE;
 
         arbitrary_va = p + (random_number * PAGE_SIZE) / sizeof(ULONG_PTR);
 
         __try
         {
-            // LM Fix if this is accessed, we now need to reset age
             *arbitrary_va = (ULONG_PTR) arbitrary_va;
-            page_fault_handler(FALSE, arbitrary_va);
         }
         __except(EXCEPTION_EXECUTE_HANDLER)
         {
             page_faulted = TRUE;
         }
 
+        if (page_fault_handler(page_faulted, arbitrary_va) == FALSE)
+        {
+            printf("full_virtual_memory_test : page fault handler failed");
+            return FALSE;
+        }
 
         if (page_faulted) {
-            fault_handled = page_fault_handler(TRUE, arbitrary_va);
-            if (fault_handled == FALSE)
-            {
-                return FALSE;
-            }
-
             *arbitrary_va = (ULONG_PTR) arbitrary_va;
         }
     }
 
+    printf("full_virtual_memory_test : finished accessing %lu random virtual addresses\n", num_addresses);
     return TRUE;
 }

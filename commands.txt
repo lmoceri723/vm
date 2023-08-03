@@ -15,10 +15,58 @@ vm
 
 Ignore page fault exceptions
 sxd av
-// Second chance is a real exception
+Second chance is a real exception
 
 See list of threads
 ~
 
-Switch to NUMBER thread
-~NUMBERs
+Switch to thread
+~<Thread>s
+
+Dump memory at _ address
+dc <address>
+
+Dump local variables
+dv
+
+Dump a local variable
+dv <name>
+
+Dump global variable
+?? <name>
+
+dump struct at an address
+dt <type> <address>
+
+Set a breakpoint in a function
+bp <file>!<function>
+
+Simplified once in a file
+bp <function>
+
+See list of breakpoints
+bl
+
+Disable breakpoint
+bd <breakpoint>
+
+Enable breakpoint
+be <breakpoint>
+
+Go
+g
+
+Go immediately
+gh
+
+Math
+? <expression>
+
+Base Conversions
+? <0xHEX> or ? <0bBINARY> or ? <0nDECIMAL>
+
+See Call Stack
+kn
+
+Unassemble
+u
