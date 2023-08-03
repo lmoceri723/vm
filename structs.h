@@ -1,7 +1,3 @@
-//
-// Created by ltm14 on 7/17/2023.
-//
-
 #ifndef VM_TWO_STRUCTS_H
 #define VM_TWO_STRUCTS_H
 
@@ -11,7 +7,6 @@
 
 #define PAGE_SIZE                   4096
 #define MB(x)                       ((x) * 1024 * 1024)
-#define GB(x)                       (MB (x) * 1024)
 
 typedef struct {
     ULONG64 valid:1;
@@ -37,7 +32,7 @@ typedef struct {
     ULONG state:3;
     // Age can range from 0 to 7
     ULONG age:3;
-}PFN_FLAGS, *PPFN_FLAGS;
+}PFN_FLAGS/*, *PPFN_FLAGS*/;
 
 typedef struct {
     LIST_ENTRY entry;
@@ -48,6 +43,6 @@ typedef struct {
 typedef struct {
     LIST_ENTRY entry;
     ULONG_PTR num_pages;
-} PFN_LIST, *PPFN_LIST;
+} PFN_LIST/*, *PPFN_LIST*/;
 
 #endif //VM_TWO_STRUCTS_H

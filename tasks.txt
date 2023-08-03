@@ -7,20 +7,10 @@
 
 Right Now:
     1. Aging / Trimming / Modified Writing
-
     2. Zeroed Page List
 
-    5. All LM Fixes
 
-
-    b. Write and use a dynamic malloc funtion
-
-
-    c. Restrict more of what userapp can see
-    e. cleanup at the end
-
-
-
+    1. Dynamic Malloc
     6. Reads vs Writes
     9. API support (allocate free protect lock unlock query etc)
     4. Runtime Optimizations

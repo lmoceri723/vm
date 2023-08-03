@@ -8,9 +8,11 @@
 
 #define FREE 0
 #define CLEAN 1
-#define ZEROED 2
+//#define ZEROED 2
 #define MODIFIED 3
 #define ACTIVE 4
+
+#define NUMBER_OF_AGES 8
 
 extern ULONG_PTR physical_page_count;
 extern ULONG_PTR disc_page_count;
@@ -20,7 +22,6 @@ extern PFN_LIST modified_page_list;
 extern PFN_LIST standby_page_list;
 extern PFN_LIST active_page_list[8];
 extern PPTE pte_base;
-extern PPTE pte_end;
 extern PVOID va_base;
 extern PVOID modified_write_va;
 extern PVOID modified_read_va;
@@ -30,8 +31,7 @@ extern PUCHAR disc_end;
 extern PPFN pfn_metadata;
 
 extern BOOLEAN initialize_system(VOID);
-extern PVOID allocate_memory(PULONG_PTR num_bytes);
-extern BOOLEAN page_fault_handler(BOOLEAN faulted, PVOID arbitrary_va);
+extern VOID deinitialize_system(VOID);
 extern BOOLEAN full_virtual_memory_test(VOID);
 extern PPFN pfn_from_frame_number(ULONG64 frame_number);
 

@@ -1,25 +1,26 @@
 #include <stdio.h>
-#include <stdlib.h>
 #include <windows.h>
 #include <time.h>
 #include "macros.h"
 #include "structs.h"
 #include "system.h"
 
+
 #pragma comment(lib, "advapi32.lib")
+
 
 PPTE pte_from_va(PVOID virtual_address);
 PVOID va_from_pte(PPTE pte);
 PPFN pfn_from_frame_number(ULONG64 frame_number);
-VOID write_modified_pages();
+BOOLEAN write_modified_pages();
 //VOID clear_standby_list();
-VOID find_trim_candidates();
-VOID trim(PPFN page);
-//VOID age(PPFN page);
+BOOLEAN find_trim_candidates();
+BOOLEAN trim(PPFN page);
 PPFN get_free_page(VOID);
 PPFN read_page_on_disc(PPTE pte);
 VOID remove_from_list(PPFN pfn);
 VOID free_disc_space(ULONG64 disc_index);
+
 
 ULONG_PTR virtual_address_size;
 ULONG_PTR physical_page_count;
@@ -27,10 +28,8 @@ ULONG_PTR disc_page_count;
 PFN_LIST free_page_list;
 PFN_LIST modified_page_list;
 PFN_LIST standby_page_list;
-// LM Fix #define this 8 later
-PFN_LIST active_page_list[8];
+PFN_LIST active_page_list[NUMBER_OF_AGES];
 PPTE pte_base;
-PPTE pte_end;
 PVOID va_base;
 PVOID modified_write_va;
 PVOID modified_read_va;
@@ -40,11 +39,13 @@ PUCHAR disc_end;
 PPFN pfn_metadata;
 
 
-
-
 PPTE pte_from_va(PVOID virtual_address)
 {
-    // LM Fix check that a va is in bounds, if it is return null
+    if ((ULONG_PTR) virtual_address > (ULONG_PTR) va_base + virtual_address_size)
+    {
+        printf("pte_from_va : virtual address is out of valid range");
+        return NULL;
+    }
     ULONG_PTR difference = (ULONG_PTR) virtual_address - (ULONG_PTR) va_base;
     difference /= PAGE_SIZE;
 
@@ -53,13 +54,16 @@ PPTE pte_from_va(PVOID virtual_address)
 
 PVOID va_from_pte(PPTE pte)
 {
-    // ULONG_PTR difference = (ULONG_PTR) pte - (ULONG_PTR) pte_base;
-
     ULONG_PTR difference = (ULONG_PTR) (pte - pte_base);
-
     difference *= PAGE_SIZE;
 
-    return (PVOID) ((ULONG_PTR) va_base + difference);
+    PVOID result = (PVOID) ((ULONG_PTR) va_base + difference);
+    if ((ULONG_PTR) result > (ULONG_PTR) va_base + virtual_address_size)
+    {
+        printf("va_from_pte : virtual address is out of valid range");
+        return NULL;
+    }
+    return result;
 }
 
 PPFN pfn_from_frame_number(ULONG64 frame_number)
@@ -88,16 +92,21 @@ VOID clear_standby_list()
 #endif
 
 // This puts a page on the modified list
-VOID trim(PPFN page)
+BOOLEAN trim(PPFN page)
 {
     PVOID user_va = va_from_pte(page->pte);
+    if (user_va == NULL)
+    {
+        printf("trim : could not get the va connected to the pte");
+        return FALSE;
+    }
 
     // The user va is still mapped, we need to unmap it here to stop the user from changing it
     // Any attempt to modify this va will lead to a page fault so that we will not be able to have stale data
     if (MapUserPhysicalPages (user_va, 1, NULL) == FALSE) {
 
-        printf ("full_virtual_memory_test : could not unmap VA %p to page %llX\n", user_va, frame_number_from_pfn(page));
-        return;
+        printf ("trim : could not unmap VA %p to page %llX\n", user_va, frame_number_from_pfn(page));
+        return FALSE;
     }
     remove_from_list(page);
 
@@ -106,15 +115,16 @@ VOID trim(PPFN page)
 
     InsertTailList(&modified_page_list.entry, &page->entry);
     modified_page_list.num_pages++;
+    return TRUE;
 }
 
 // Age based on consumption
-VOID age_pages()
+BOOLEAN age_pages()
 {
     PLIST_ENTRY flink_entry;
     PPFN pfn;
 
-    for (unsigned i = 0; i < 8; i++)
+    for (unsigned i = 0; i < NUMBER_OF_AGES; i++)
     {
         flink_entry = active_page_list[i].entry.Flink;
         while (flink_entry != &active_page_list[i].entry)
@@ -124,9 +134,13 @@ VOID age_pages()
             pfn = CONTAINING_RECORD(flink_entry, PFN, entry);
             flink_entry = pfn->entry.Flink;
 
-            if (pfn->flags.age == 7)
+            if (pfn->flags.age == NUMBER_OF_AGES - 1)
             {
-                trim(pfn);
+                if (trim(pfn) == FALSE)
+                {
+                    printf("age_pages : could not trim page");
+                    return FALSE;
+                }
             }
             else
             {
@@ -136,48 +150,23 @@ VOID age_pages()
             }
         }
     }
+    return TRUE;
 }
 
-// Also trim based on consumption, but do so later than aging
-VOID find_trim_candidates()
+BOOLEAN find_trim_candidates()
 {
     while(modified_page_list.num_pages == 0)
     {
-        age_pages();
+        if (age_pages() == FALSE)
+        {
+            printf("find_trim_candidates : could not age pages");
+            return FALSE;
+        }
     }
 
-//    PPTE pte_pointer = pte_base;
-//
-//    while (pte_pointer != pte_end)
-//    {
-//        PTE contents = *pte_pointer;
-//        if (contents.hardware_format.valid)
-//        {
-//            // We have a candidate, now we need a pfn to trim it
-//            PPFN pfn = pfn_from_frame_number(contents.hardware_format.frame_number);
-//            trim(pfn);
-//        }
-//        pte_pointer++;
-//    }
-
-// LM Fix move this
-    write_modified_pages();
+    // Since write modified pages is the last thing we do, we can just return the result of it
+    return write_modified_pages();
 }
-
-#if 0
-VOID age(PPFN page)
-{
-    ULONG state = page->state;
-    if (state == 7)
-    {
-        trim(page);
-    }
-    else
-    {
-        page->state++;
-    }
-}
-#endif
 
 PPFN get_free_page(VOID) {
 
@@ -186,7 +175,11 @@ PPFN get_free_page(VOID) {
 
         if (free_page_list.num_pages == 0) {
             if (standby_page_list.num_pages == 0) {
-                find_trim_candidates();
+                if (find_trim_candidates() == FALSE)
+                {
+                    printf("get_free_page : could not find trim candidates");
+                    return NULL;
+                }
             }
         }
         if (free_page_list.num_pages != 0) {
@@ -212,6 +205,11 @@ PPFN get_free_page(VOID) {
 PPFN read_page_on_disc(PPTE pte)
 {
     PPFN free_page = get_free_page();
+    if (free_page == NULL)
+    {
+        printf("read_page_on_disc : could not get a free page");
+        return NULL;
+    }
 
     ULONG_PTR frame_number = frame_number_from_pfn(free_page);
     if (MapUserPhysicalPages(modified_read_va, 1, &frame_number) == FALSE) {
@@ -286,9 +284,8 @@ VOID free_disc_space(ULONG64 disc_index)
     *disc_spot = spot_cluster;
 }
 
-VOID write_modified_pages()
+BOOLEAN write_modified_pages()
 {
-    // LM fix implement a disc free space count global and use it to avoid iteration while checking
     while (modified_page_list.num_pages != 0)
     {
         PPFN pfn = (PPFN) RemoveHeadList(&modified_page_list.entry);
@@ -299,10 +296,9 @@ VOID write_modified_pages()
 
             printf ("full_virtual_memory_test : could not map VA %p to page %llX\n", modified_write_va,
                     frame_number_from_pfn(pfn));
-            return;
+            return FALSE;
         }
 
-        // LM Fix what if all spots are filled
         ULONG disc_index = get_disc_index();
 
         if (disc_index == MAXULONG32)
@@ -311,13 +307,14 @@ VOID write_modified_pages()
 
                 printf ("full_virtual_memory_test : could not unmap VA %p to page %llX\n", modified_write_va,
                         frame_number_from_pfn(pfn));
-                return;
+                return FALSE;
             }
 
             InsertHeadList(&modified_page_list.entry, &pfn->entry);
             modified_page_list.num_pages++;
 
-            return;
+            // Even though we don't write here, we return true, so we can try it again
+            return TRUE;
         }
 
         PVOID actual_space;
@@ -331,13 +328,15 @@ VOID write_modified_pages()
 
             printf ("full_virtual_memory_test : could not unmap VA %p to page %llX\n", modified_write_va,
                     frame_number_from_pfn(pfn));
-            return;
+            return FALSE;
         }
         pfn->flags.state = CLEAN;
 
         InsertTailList(&standby_page_list.entry, &pfn->entry);
         standby_page_list.num_pages++;
     }
+
+    return TRUE;
 }
 
 VOID remove_from_list(PPFN pfn)
@@ -370,7 +369,7 @@ BOOLEAN page_fault_handler(BOOLEAN faulted, PVOID arbitrary_va)
     PPTE pte = pte_from_va(arbitrary_va);
     if (pte == NULL)
     {
-        printf("ERROR PTE NULL");
+        printf("page_fault_handler : cannot get pte from va");
         return FALSE;
     }
     PTE pte_contents = *pte;
@@ -406,7 +405,7 @@ BOOLEAN page_fault_handler(BOOLEAN faulted, PVOID arbitrary_va)
         remove_from_list(pfn);
     }
     if (pfn == NULL) {
-        printf("Fatal Error: could not get a page in page fault handler");
+        printf("page_fault_handler : could not get a page");
         return FALSE;
     }
 
@@ -421,7 +420,7 @@ BOOLEAN page_fault_handler(BOOLEAN faulted, PVOID arbitrary_va)
     ULONG_PTR frame_number = frame_number_from_pfn(pfn);
     if (MapUserPhysicalPages(arbitrary_va, 1, &frame_number) == FALSE) {
 
-        printf("full_virtual_memory_test : could not map VA %p to page %llX\n", arbitrary_va,
+        printf("page_fault_handler : could not map VA %p to page %llX\n", arbitrary_va,
                frame_number_from_pfn(pfn));
         return FALSE;
     }
@@ -463,25 +462,17 @@ main (int argc, char** argv)
      store, bringing them back from backing store, protecting them, etc.
 
      This is where we can be as creative as we like, the sky's the limit ! */
-    ULONG start_time;
-    ULONG end_time;
-    ULONG time_elapsed;
-
     if (initialize_system() == FALSE) {
-        printf("system not initialized");
+        printf("main : could not initialize system");
         return 1;
     }
 
-    start_time = GetTickCount();
     if (full_virtual_memory_test() == FALSE)
     {
-        // LM Fix print
+        printf("main : full virtual memory test failed");
         return 1;
     }
 
-    // LM FIX query performance counter
-    end_time = GetTickCount();
-    time_elapsed = end_time - start_time;
-    printf("finished in %lu ms (%lu s)", time_elapsed, time_elapsed / 1000);
+    deinitialize_system();
     return 0;
 }

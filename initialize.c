@@ -10,7 +10,7 @@
 #define NUMBER_OF_PHYSICAL_PAGES                 (MB (1) / PAGE_SIZE)
 #define NUMBER_OF_DISC_PAGES                     (MB (16) / PAGE_SIZE)
 
-int compare (const void * a, const void * b);
+int compare(const void * a, const void * b);
 
 unsigned i;
 PULONG_PTR physical_page_numbers;
@@ -83,22 +83,7 @@ BOOLEAN create_page_file(ULONG_PTR bytes)
         printf("create_page_file : amount of bytes in page file exceed its maximum possible size");
         return FALSE;
     }
-    // LM Fix be more sophisticated by scaling disc size down while malloc fails by reducing bytes in the loop
-    ULONG_PTR actual_bytes = bytes;
-    disc_space = malloc(actual_bytes);
-    // LM Fix make this a function and apply this to all cases of mallocing in this file
-#if 0
-    while (disc_space == NULL)
-    {
-        actual_bytes = actual_bytes * 0.9;
-        disc_space = malloc(actual_bytes);
-    }
-    if (actual_bytes != bytes)
-    {
-        printf("create_page_file : could only allocate %lu out of %lu bytes for the disc space", actual_bytes, bytes);
-    }
-#endif
-
+    disc_space = malloc(bytes);
     if (disc_space == NULL)
     {
         printf("create_page_file : could not allocate memory for disc space");
@@ -122,8 +107,12 @@ BOOLEAN create_page_file(ULONG_PTR bytes)
     return TRUE;
 }
 
+#if 0
 ULONG_PTR dynamic_malloc(PVOID variable, ULONG_PTR bytes)
 {
+    // Make this a function and apply this to all cases of mallocing in this file
+    // Make sure to go back as well and change any globals that will be affected by this
+    // as well as when physical_page_count != NUMBER_OF_PHYSICAL_PAGES
     ULONG_PTR actual_bytes = bytes;
     variable = malloc(actual_bytes);
 
@@ -139,6 +128,7 @@ ULONG_PTR dynamic_malloc(PVOID variable, ULONG_PTR bytes)
 
     return actual_bytes;
 }
+#endif
 
 
 VOID initialize_page_lists(VOID)
@@ -157,31 +147,6 @@ VOID initialize_page_lists(VOID)
         InitializeListHead(&active_page_list[i].entry);
         active_page_list[i].num_pages = 0;
     }
-}
-
-// LM Fix combine this with initialize pfn metadata
-VOID populate_free_list(VOID)
-{
-    PPFN free_pfn;
-    ULONG_PTR frame_number;
-
-    for (i = 0; i < physical_page_count; i++) {
-
-        frame_number = physical_page_numbers[i];
-
-        // We are not using page zero so a frame number of zero can correspond to a page being on disc
-        if (frame_number == PAGE_ON_DISC || frame_number == 0) {
-            continue;
-        }
-
-        free_pfn = pfn_from_frame_number(frame_number);
-
-        free_pfn->flags.state = FREE;
-        InsertTailList(&free_page_list.entry, &free_pfn->entry);
-        free_page_list.num_pages++;
-    }
-    // From now on, we only use the free page list instead of a page number array
-     free(physical_page_numbers);
 }
 
 BOOLEAN initialize_readwrite_va(VOID)
@@ -244,7 +209,6 @@ BOOLEAN initialize_pte_metadata(VOID)
 {
     ULONG_PTR num_pte_bytes = virtual_address_size / PAGE_SIZE * sizeof(PTE);
     pte_base = malloc(num_pte_bytes);
-    pte_end = pte_base + num_pte_bytes / sizeof(PTE);
     if (pte_base == NULL) {
         printf("initialize_pte_metadata : could not reserve memory for pte metadata\n");
         return FALSE;
@@ -266,9 +230,13 @@ BOOLEAN initialize_pfn_metadata(VOID)
         return FALSE;
     }
 
+    PPFN pfn;
+    ULONG_PTR frame_number;
+
     for (i = 0; i < physical_page_count; i++)
     {
-        if (physical_page_numbers[i] == PAGE_ON_DISC || physical_page_numbers[i] == 0) {
+        frame_number = physical_page_numbers[i];
+        if (frame_number == PAGE_ON_DISC || frame_number == 0) {
             continue;
         }
 
@@ -281,7 +249,15 @@ BOOLEAN initialize_pfn_metadata(VOID)
         }
 
         memset(pfn_metadata + physical_page_numbers[i], 0, sizeof(PFN));
+
+        pfn = pfn_from_frame_number(frame_number);
+        pfn->flags.state = FREE;
+        InsertTailList(&free_page_list.entry, &pfn->entry);
+        free_page_list.num_pages++;
     }
+
+    // LM ASK do we need to keep this to free the pages at the end
+    //free(physical_page_numbers);
     return TRUE;
 }
 
@@ -306,7 +282,6 @@ BOOLEAN initialize_pages()
 
     if (physical_page_count != NUMBER_OF_PHYSICAL_PAGES) {
         printf("initialize_pages : allocated only %lu pages out of %u pages requested\n",
-                // LM Fix va space will be restricted if this condition is met, we need to make it a global and compute it after this
                physical_page_count,
                NUMBER_OF_PHYSICAL_PAGES);
     }
@@ -336,6 +311,8 @@ BOOLEAN initialize_system (VOID) {
         return FALSE;
     }
 
+    initialize_page_lists();
+
     // Insert array of pages into free list
     if (initialize_pfn_metadata() == FALSE)
     {
@@ -344,7 +321,6 @@ BOOLEAN initialize_system (VOID) {
     }
 
     initialize_page_lists();
-    populate_free_list();
 
     if (create_page_file(NUMBER_OF_DISC_PAGES * PAGE_SIZE) == FALSE)
     {
@@ -373,29 +349,21 @@ BOOLEAN initialize_system (VOID) {
     return TRUE;
 }
 
-#if 0
-// LM Fix make this free everything
-// Only what we have malloced or virtualalloced
-// Do corresponding things to each (malloc = free, virtualalloc = virtualfree)
-BOOLEAN deinitialize_system (VOID)
+VOID deinitialize_system (VOID)
 {
     // Now that we're done with our memory we can be a good citizen and free it.
-    VirtualFree(p, 0, MEM_RELEASE);
-
-    // ONLY FREE WHAT I HAVE MALLOCED
-    free((PVOID) physical_page_count);
-    free((PVOID) disc_page_count);
-    free((PVOID) virtual_address_size);
     free(pte_base);
-    free(pte_end);
-    free(va_base);
-    free(modified_read_va);
-    free(modified_write_va);
-    free(disc_space);
+    VirtualFree(modified_read_va, PAGE_SIZE, MEM_RELEASE);
+    VirtualFree(modified_write_va, PAGE_SIZE, MEM_RELEASE);
+    VirtualFree(va_base, virtual_address_size, MEM_RELEASE);
     free(disc_in_use);
-    free(disc_end);
-    free(pfn_metadata);
-    free((PVOID) i);
-    free(physical_page_handle);
+    free(disc_space);
+    VirtualFree(pfn_metadata, physical_page_numbers[physical_page_count - 1] * sizeof(PFN),
+                MEM_RELEASE);
+    FreeUserPhysicalPages(physical_page_handle,&physical_page_count,
+                          physical_page_numbers);
+
+
+
+
 }
-#endif

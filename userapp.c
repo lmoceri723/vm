@@ -1,10 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <windows.h>
-#include "structs.h"
-#include "system.h"
+#include "userapp.h"
 
 #pragma comment(lib, "advapi32.lib")
+
+#define NUM_ADDRESSES MB(1)
 
 BOOLEAN full_virtual_memory_test (VOID) {
 
@@ -12,18 +13,22 @@ BOOLEAN full_virtual_memory_test (VOID) {
     PULONG_PTR arbitrary_va;
     ULONG random_number;
     BOOL page_faulted;
-
-    ULONG_PTR num_addresses;
     PULONG_PTR p;
     ULONG_PTR num_bytes;
+    ULONG_PTR num_addresses;
+    ULONG_PTR num_faults;
     ULONG_PTR virtual_address_size_in_pages;
+
+    ULONG start_time;
+    ULONG end_time;
+    ULONG time_elapsed;
 
     p = (PULONG_PTR) allocate_memory(&num_bytes);
 
     virtual_address_size_in_pages = num_bytes / PAGE_SIZE;
 
-
-    num_addresses = MB(1);
+    start_time = GetTickCount();
+    num_addresses = NUM_ADDRESSES;
     for (i = 0; i < num_addresses; i++)
     {
         // Randomly access different portions of the virtual address
@@ -54,6 +59,7 @@ BOOLEAN full_virtual_memory_test (VOID) {
         }
         __except(EXCEPTION_EXECUTE_HANDLER)
         {
+            num_faults++;
             page_faulted = TRUE;
         }
 
@@ -68,6 +74,11 @@ BOOLEAN full_virtual_memory_test (VOID) {
         }
     }
 
-    printf("full_virtual_memory_test : finished accessing %lu random virtual addresses\n", num_addresses);
+    end_time = GetTickCount();
+    time_elapsed = end_time - start_time;
+    printf("full_virtual_memory_test : finished accessing %lu random virtual addresses in %lu ms (%f s)\n",
+           num_addresses, time_elapsed, time_elapsed / 1000.0);
+    printf("full_virtual_memory_test : took %lu faults\n", num_faults);
+
     return TRUE;
 }
