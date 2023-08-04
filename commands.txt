@@ -11,7 +11,6 @@ windbg vm.exe
 Run
 vm
 /*********************** DEBUG ************************/
-// LM FIX PUT A CHEAT SHEET FOR COMMON DEBUGGER COMMANDS
 
 Ignore page fault exceptions
 sxd av
@@ -39,7 +38,8 @@ dump struct at an address
 dt <type> <address>
 
 Set a breakpoint in a function
-bp <file>!<function>
+bp <binary>!<function>
+binary is not equivalent to file
 
 Simplified once in a file
 bp <function>
@@ -70,3 +70,9 @@ kn
 
 Unassemble
 u
+
+0:000> x vm!disc*
+00007ff6`f4bf8450 vm!disc_in_use = 0x0000024f`80886020 "???"
+00007ff6`f4bf8458 vm!disc_space = 0x0000024f`914a7040
+00007ff6`f4bf8448 vm!disc_end = 0x0000024f`80886220 "???"
+00007ff6`f4bf84b8 vm!disc_page_count = 0x1000000

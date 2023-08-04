@@ -7,6 +7,9 @@
 
 #define NUM_ADDRESSES MB(1)
 
+ULONG_PTR fake_faults;
+ULONG_PTR num_faults;
+
 BOOLEAN full_virtual_memory_test (VOID) {
 
     ULONG i;
@@ -16,7 +19,7 @@ BOOLEAN full_virtual_memory_test (VOID) {
     PULONG_PTR p;
     ULONG_PTR num_bytes;
     ULONG_PTR num_addresses;
-    ULONG_PTR num_faults;
+
     ULONG_PTR virtual_address_size_in_pages;
 
     ULONG start_time;
@@ -59,7 +62,6 @@ BOOLEAN full_virtual_memory_test (VOID) {
         }
         __except(EXCEPTION_EXECUTE_HANDLER)
         {
-            num_faults++;
             page_faulted = TRUE;
         }
 
@@ -76,9 +78,10 @@ BOOLEAN full_virtual_memory_test (VOID) {
 
     end_time = GetTickCount();
     time_elapsed = end_time - start_time;
-    printf("full_virtual_memory_test : finished accessing %lu random virtual addresses in %lu ms (%f s)\n",
+    printf("full_virtual_memory_test : finished accessing %Iu random virtual addresses in %u ms (%f s)\n",
            num_addresses, time_elapsed, time_elapsed / 1000.0);
-    printf("full_virtual_memory_test : took %lu faults\n", num_faults);
+    printf("full_virtual_memory_test : took %Iu faults and %Iu fake faults\n", num_faults, fake_faults);
+
 
     return TRUE;
 }

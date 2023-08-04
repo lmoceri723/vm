@@ -16,7 +16,8 @@ typedef struct {
 typedef struct {
     ULONG64 valid:1;
     ULONG64 frame_number:40;
-    // This creates a limit of how many disc indexes can exist
+    // This creates a limit of how many disc indexes can exist,
+    // Can be potentially fixed by separating this structure into two formats
     ULONG64 disc_index:23;
 } INVALID_PTE/*, *PINVALID_PTE*/;
 

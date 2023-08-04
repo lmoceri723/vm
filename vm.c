@@ -4,10 +4,9 @@
 #include "macros.h"
 #include "structs.h"
 #include "system.h"
-
+#include "userapp.h"
 
 #pragma comment(lib, "advapi32.lib")
-
 
 PPTE pte_from_va(PVOID virtual_address);
 PVOID va_from_pte(PPTE pte);
@@ -20,7 +19,6 @@ PPFN get_free_page(VOID);
 PPFN read_page_on_disc(PPTE pte);
 VOID remove_from_list(PPFN pfn);
 VOID free_disc_space(ULONG64 disc_index);
-
 
 ULONG_PTR virtual_address_size;
 ULONG_PTR physical_page_count;
@@ -378,10 +376,13 @@ BOOLEAN page_fault_handler(BOOLEAN faulted, PVOID arbitrary_va)
     if (faulted == FALSE)
     {
         PPFN pfn;
-        pfn = pfn_from_frame_number(pte_contents.software_format.frame_number);
+        pfn = pfn_from_frame_number(pte_contents.hardware_format.frame_number);
         pfn->flags.age = 0;
+        fake_faults++;
         return TRUE;
     }
+    num_faults++;
+    //printf(" page_faulted ");
     // Connect the virtual address now - if that succeeds then
     // we'll be able to access it from now on.
 

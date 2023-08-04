@@ -102,7 +102,7 @@ BOOLEAN create_page_file(ULONG_PTR bytes)
 
     disc_end = disc_in_use + size;
 
-    disc_page_count = bytes;
+    disc_page_count = bytes / PAGE_SIZE;
 
     return TRUE;
 }
@@ -281,7 +281,7 @@ BOOLEAN initialize_pages()
     }
 
     if (physical_page_count != NUMBER_OF_PHYSICAL_PAGES) {
-        printf("initialize_pages : allocated only %lu pages out of %u pages requested\n",
+        printf("initialize_pages : allocated only %Iu pages out of %u pages requested\n",
                physical_page_count,
                NUMBER_OF_PHYSICAL_PAGES);
     }
@@ -320,8 +320,6 @@ BOOLEAN initialize_system (VOID) {
         return FALSE;
     }
 
-    initialize_page_lists();
-
     if (create_page_file(NUMBER_OF_DISC_PAGES * PAGE_SIZE) == FALSE)
     {
         printf("initialize_system : could not create page file\n");
@@ -346,6 +344,7 @@ BOOLEAN initialize_system (VOID) {
         return FALSE;
     }
 
+    printf("initialize_system : system successfully initialized\n");
     return TRUE;
 }
 
