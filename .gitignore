@@ -3,6 +3,9 @@
 /cmake-build-debug/
 /debug logs/
 
+# Old Version
+initial_vm.c
+
 # Prerequisites
 *.d
 
@@ -57,6 +60,7 @@ Mkfile.old
 dkms.conf
 
 # CMake Files
+CMakeLists.txt
 CMakeLists.txt.user
 CMakeCache.txt
 CMakeFiles

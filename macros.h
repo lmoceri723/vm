@@ -2,8 +2,8 @@
 // Created by ltm14 on 7/12/2023.
 //
 
-#ifndef VM_TWO_MACROS_H
-#define VM_TWO_MACROS_H
+#ifndef VM_MACROS_H
+#define VM_MACROS_H
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -150,4 +150,4 @@ PushEntryList(
 Entry->Next = ListHead->Next;
 ListHead->Next = Entry;
 }
-#endif //VM_TWO_MACROS_H
+#endif //VM_MACROS_H

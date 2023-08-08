@@ -1,5 +1,5 @@
-#ifndef VM_TWO_SYSTEM_H
-#define VM_TWO_SYSTEM_H
+#ifndef VM_SYSTEM_H
+#define VM_SYSTEM_H
 
 #include "structs.h"
 
@@ -35,4 +35,4 @@ extern VOID deinitialize_system(VOID);
 extern BOOLEAN full_virtual_memory_test(VOID);
 extern PPFN pfn_from_frame_number(ULONG64 frame_number);
 
-#endif //VM_TWO_SYSTEM_H
+#endif //VM_SYSTEM_H

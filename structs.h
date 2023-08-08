@@ -1,5 +1,5 @@
-#ifndef VM_TWO_STRUCTS_H
-#define VM_TWO_STRUCTS_H
+#ifndef VM_STRUCTS_H
+#define VM_STRUCTS_H
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -47,4 +47,4 @@ typedef struct {
     CRITICAL_SECTION lock;
 } PFN_LIST, *PPFN_LIST;
 
-#endif //VM_TWO_STRUCTS_H
+#endif //VM_STRUCTS_H
