@@ -70,7 +70,6 @@ BOOL GetPrivilege(VOID)
     }
 
     CloseHandle(Token);
-
     return TRUE;
 }
 
@@ -361,8 +360,4 @@ VOID deinitialize_system (VOID)
                 MEM_RELEASE);
     FreeUserPhysicalPages(physical_page_handle,&physical_page_count,
                           physical_page_numbers);
-
-
-
-
 }
