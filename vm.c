@@ -6,8 +6,6 @@
 #include "system.h"
 #include "userapp.h"
 
-#define ExitCriticalSection() LeaveCriticalSection()
-
 #pragma comment(lib, "advapi32.lib")
 
 PPTE pte_from_va(PVOID virtual_address);
