@@ -60,15 +60,13 @@ Mkfile.old
 dkms.conf
 
 # CMake Files
-CMakeLists.txt
+*.txt
 CMakeLists.txt.user
-CMakeCache.txt
 CMakeFiles
 CMakeScripts
 Testing
 Makefile
 cmake_install.cmake
-install_manifest.txt
 compile_commands.json
 CTestTestfile.cmake
 _deps

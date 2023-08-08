@@ -19,7 +19,7 @@ BOOLEAN find_trim_candidates();
 BOOLEAN trim(PPFN page);
 PPFN get_free_page(VOID);
 PPFN read_page_on_disc(PPTE pte, PPFN free_page);
-VOID remove_from_list(PPFN pfn);
+VOID remove_from_list(PPFN pfn, BOOLEAN holds_locks);
 VOID free_disc_space(ULONG64 disc_index);
 
 ULONG_PTR virtual_address_size;
@@ -99,19 +99,24 @@ BOOLEAN trim(PPFN page)
     PVOID user_va = va_from_pte(page->pte);
     if (user_va == NULL)
     {
+        // FATAL
         printf("trim : could not get the va connected to the pte");
         return FALSE;
     }
+
 
     // The user va is still mapped, we need to unmap it here to stop the user from changing it
     // Any attempt to modify this va will lead to a page fault so that we will not be able to have stale data
     if (MapUserPhysicalPages (user_va, 1, NULL) == FALSE) {
 
+        // FATAL
         printf ("trim : could not unmap VA %p to page %llX\n", user_va, frame_number_from_pfn(page));
         return FALSE;
     }
+
     remove_from_list(page);
 
+    EnterCriticalSection(pfn_change_lock);
     page->flags.state = MODIFIED;
     page->pte->hardware_format.valid = 0;
 
@@ -129,15 +134,20 @@ BOOLEAN age_pages()
 
     for (unsigned i = 0; i < NUMBER_OF_AGES; i++)
     {
-        flink_entry = active_page_list[i].entry.Flink;
-        while (flink_entry != &active_page_list[i].entry)
+        unsigned age = NUMBER_OF_AGES - i - 1;
+
+        EnterCriticalSection(&active_page_list[age].lock);
+
+        flink_entry = active_page_list[age].entry.Flink;
+        while (flink_entry != &active_page_list[age].entry)
         {
             // We deliberately capture the Flink now
             // The page might enter the modified list and be assigned a new one
+
             pfn = CONTAINING_RECORD(flink_entry, PFN, entry);
             flink_entry = pfn->entry.Flink;
 
-            if (pfn->flags.age == NUMBER_OF_AGES - 1)
+            if (age == NUMBER_OF_AGES - 1)
             {
                 if (trim(pfn) == FALSE)
                 {
@@ -148,38 +158,56 @@ BOOLEAN age_pages()
             else
             {
                 // LM Fix make swapping active lists a function
-                remove_from_list(pfn);
+                EnterCriticalSection(pfn_change_lock);
+                EnterCriticalSection(&active_page_list[age+1].lock);
+
+                remove_from_list(pfn, TRUE);
                 pfn->flags.age++;
-                InsertTailList(&active_page_list[i+1].entry, &pfn->entry);
+                InsertTailList(&active_page_list[age+1].entry, &pfn->entry);
+
+                LeaveCriticalSection(&active_page_list[age+1].lock);
+                LeaveCriticalSection(pfn_change_lock);
             }
         }
+        //TryEnterCriticalSection()
+        LeaveCriticalSection(&active_page_list[age].lock);
     }
     return TRUE;
 }
 
-// LM Multi
+
+HANDLE wake_aging_event;
+VOID abc(VOID)
+{
+    wake_aging_event = CreateEvent(NULL, FALSE, FALSE, NULL);
+    if (wake_aging_event == NULL)
+    {
+        // FATAL
+        return;
+    }
+}
+
 // LM Fix same needs to be done for write modified pages
-// Look up create event and set event
-BOOLEAN find_trim_candidates()
+
+
+// Nobody gets to call this, it needs to be invoked in its own thread context
+VOID find_trim_candidates()
 {
     while (TRUE)
     {
+        // The conditions that cause this to start running could become false between when it is marked as ready and ran
+        // We always need to reevaluate this to see whether its actually needed
         if (free_page_list.num_pages <= physical_page_count / 4)
         {
-            if (age_pages() == FALSE)
-            {
-                printf("find_trim_candidates : could not age pages");
-                // Returning false is no longer viable here
-            }
+            // We are not just looking the other way here, we have a trust model
+            age_pages();
         }
 
         // wait for memory running low object as well as system exit object
-        WaitForMultipleObjects();
+        WaitForSingleObject(wake_aging_event, INFINITE);
     }
-
-    // Since write modified pages is the last thing we do, we can just return the result of it
-    return TRUE;
 }
+
 
 PPFN get_free_page(VOID) {
 
@@ -207,6 +235,7 @@ PPFN get_free_page(VOID) {
         // We would want to release our pte read lock as if we failed
 
         //printf("get_free_page : could not find trim candidates");
+        SetEvent(wake_aging_event);
         return NULL;
     }
         // Be conscious of whether we need a lock here
@@ -357,10 +386,12 @@ BOOLEAN write_modified_pages()
     return TRUE;
 }
 
-VOID remove_from_list(PPFN pfn)
+VOID remove_from_list(PPFN pfn, BOOLEAN holds_locks)
 {
     // Removes the pfn from whatever list its on, does not matter which list it is
-    EnterCriticalSection(pfn_change_lock);
+    if (holds_locks == FALSE) {
+        EnterCriticalSection(pfn_change_lock);
+    }
     PPFN_LIST listhead;
 
     if (pfn->flags.state == MODIFIED)
@@ -375,8 +406,13 @@ VOID remove_from_list(PPFN pfn)
     {
         listhead = &standby_page_list;
         free_disc_space(pfn->pte->software_format.disc_index);
+        pfn->pte->software_format.disc_index = 0;
     }
-    EnterCriticalSection(&listhead.lock);
+    if (holds_locks == FALSE)
+    {
+        EnterCriticalSection(&listhead->lock);
+    }
+
     PLIST_ENTRY prev_entry = pfn->entry.Blink;
     PLIST_ENTRY next_entry = pfn->entry.Flink;
 
@@ -384,21 +420,12 @@ VOID remove_from_list(PPFN pfn)
     next_entry->Blink = prev_entry;
 
     listhead->num_pages--;
-    LeaveCriticalSection(&listhead.lock);
-//    if (pfn->flags.state == MODIFIED)
-//    {
-//        modified_page_list.num_pages--;
-//    }
-//    else if (pfn->flags.state == ACTIVE)
-//    {
-//        active_page_list[pfn->flags.age].num_pages--;
-//    }
-//    else if (pfn->flags.state == CLEAN)
-//    {
-//        free_disc_space(pfn->pte->software_format.disc_index);
-//        standby_page_list.num_pages--;
-//    }
 
+    if (holds_locks == FALSE)
+    {
+        LeaveCriticalSection(&listhead->lock);
+        LeaveCriticalSection(pfn_change_lock);
+    }
 }
 
 BOOLEAN page_fault_handler(BOOLEAN faulted, PVOID arbitrary_va)
@@ -428,12 +455,19 @@ BOOLEAN page_fault_handler(BOOLEAN faulted, PVOID arbitrary_va)
 
         // LM FIX Do the same here but with this lock instead
         EnterCriticalSection(pfn_change_lock);
-        pfn->flags.age = 0;
-        LeaveCriticalSection(pfn_change_lock);
-        // LM Fix need to move lists here
-        // LM Fix make swapping active lists a function
+        if (pfn->flags.age != 0) {
+            EnterCriticalSection(&active_page_list[0].lock);
+            EnterCriticalSection(&active_page_list[pfn->flags.age].lock);
 
-        remove_from_list(pfn);
+            pfn->flags.age = 0;
+
+            remove_from_list(pfn, TRUE);
+            InsertTailList(&active_page_list[0].entry, &pfn->entry);
+
+            EnterCriticalSection(&active_page_list[pfn->flags.age].lock);
+            LeaveCriticalSection(&active_page_list[0].lock);
+        }
+        LeaveCriticalSection(pfn_change_lock);
         LeaveCriticalSection(pte_read_lock);
         return TRUE;
     }
@@ -469,7 +503,8 @@ BOOLEAN page_fault_handler(BOOLEAN faulted, PVOID arbitrary_va)
     // This is an address that has been accessed and trimmed
     // This will unlink it from the standby or modified list
         pfn = pfn_from_frame_number(pte_contents.software_format.frame_number);
-        remove_from_list(pfn);
+        // EXAMINE THIS MORE LM FIX
+        remove_from_list(pfn, FALSE);
     }
 
     // We have the page we need, now we need to mark it as active and map it
