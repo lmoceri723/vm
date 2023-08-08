@@ -6,7 +6,6 @@
 
 
 Right Now:
-    1. local vs global
     1. Aging / Trimming / Modified Writing
     2. Zeroed Page List
 

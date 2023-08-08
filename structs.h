@@ -44,6 +44,7 @@ typedef struct {
 typedef struct {
     LIST_ENTRY entry;
     ULONG_PTR num_pages;
-} PFN_LIST/*, *PPFN_LIST*/;
+    CRITICAL_SECTION lock;
+} PFN_LIST, *PPFN_LIST;
 
 #endif //VM_TWO_STRUCTS_H

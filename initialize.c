@@ -14,7 +14,14 @@ int compare(const void * a, const void * b);
 
 unsigned i;
 PULONG_PTR physical_page_numbers;
+
+PHANDLE thread_handles;
+PULONG thread_ids;
 HANDLE physical_page_handle;
+
+SYSTEM_INFO info;
+ULONG num_processors;
+
 
 BOOL GetPrivilege(VOID)
 {
@@ -72,6 +79,35 @@ BOOL GetPrivilege(VOID)
     CloseHandle(Token);
 
     return TRUE;
+}
+
+BOOLEAN initialize_threads()
+{
+    GetSystemInfo(&info);
+    num_processors = info.dwNumberOfProcessors;
+
+    thread_handles = malloc(sizeof(HANDLE) * num_processors);
+    thread_ids = malloc(sizeof(ULONG) * num_processors);
+
+    // 0 will need to be changed in the future
+    // Add find trim candidates to system.h
+    CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE) find_trim_candidates, (LPVOID) (ULONG_PTR) 0, 0, &thread_ids[0]);
+
+//    InitializeCriticalSection(&lock);
+
+//    for (i = 0; i < num_processors; i++)
+//    {
+//        thread_handles[i] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE) my_function, (LPVOID) (ULONG_PTR) i, 0, &thread_ids[i]);
+//        if (thread_handles[i] == NULL)
+//        {
+//            printf("ERROR");
+//            return 1;
+//        }
+//    }
+
+
+
+
 }
 
 BOOLEAN create_page_file(ULONG_PTR bytes)

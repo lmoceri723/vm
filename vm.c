@@ -6,6 +6,8 @@
 #include "system.h"
 #include "userapp.h"
 
+#define ExitCriticalSection() LeaveCriticalSection()
+
 #pragma comment(lib, "advapi32.lib")
 
 PPTE pte_from_va(PVOID virtual_address);
@@ -16,7 +18,7 @@ BOOLEAN write_modified_pages();
 BOOLEAN find_trim_candidates();
 BOOLEAN trim(PPFN page);
 PPFN get_free_page(VOID);
-PPFN read_page_on_disc(PPTE pte);
+PPFN read_page_on_disc(PPTE pte, PPFN free_page);
 VOID remove_from_list(PPFN pfn);
 VOID free_disc_space(ULONG64 disc_index);
 
@@ -64,6 +66,7 @@ PVOID va_from_pte(PPTE pte)
     return result;
 }
 
+// LM Fix check for out of range
 PPFN pfn_from_frame_number(ULONG64 frame_number)
 {
     return pfn_metadata + frame_number;
@@ -89,6 +92,7 @@ VOID clear_standby_list()
 }
 #endif
 
+// LM Multi
 // This puts a page on the modified list
 BOOLEAN trim(PPFN page)
 {
@@ -116,6 +120,7 @@ BOOLEAN trim(PPFN page)
     return TRUE;
 }
 
+// LM Multi
 // Age based on consumption
 BOOLEAN age_pages()
 {
@@ -142,6 +147,7 @@ BOOLEAN age_pages()
             }
             else
             {
+                // LM Fix make swapping active lists a function
                 remove_from_list(pfn);
                 pfn->flags.age++;
                 InsertTailList(&active_page_list[i+1].entry, &pfn->entry);
@@ -151,58 +157,66 @@ BOOLEAN age_pages()
     return TRUE;
 }
 
+// LM Multi
+// LM Fix same needs to be done for write modified pages
+// Look up create event and set event
 BOOLEAN find_trim_candidates()
 {
-    while(modified_page_list.num_pages == 0)
+    while (TRUE)
     {
-        if (age_pages() == FALSE)
+        if (free_page_list.num_pages <= physical_page_count / 4)
         {
-            printf("find_trim_candidates : could not age pages");
-            return FALSE;
+            if (age_pages() == FALSE)
+            {
+                printf("find_trim_candidates : could not age pages");
+                // Returning false is no longer viable here
+            }
         }
+
+        // wait for memory running low object as well as system exit object
+        WaitForMultipleObjects();
     }
 
     // Since write modified pages is the last thing we do, we can just return the result of it
-    return write_modified_pages();
+    return TRUE;
 }
 
 PPFN get_free_page(VOID) {
 
     PPFN free_page;
-    while (TRUE) {
 
-        if (free_page_list.num_pages == 0) {
-            if (standby_page_list.num_pages == 0) {
-                if (find_trim_candidates() == FALSE)
-                {
-                    printf("get_free_page : could not find trim candidates");
-                    return NULL;
-                }
-            }
-        }
-        if (free_page_list.num_pages != 0) {
-            free_page = (PPFN) RemoveHeadList(&free_page_list.entry);
-            free_page_list.num_pages--;
-        } else if (standby_page_list.num_pages != 0) {
-            free_page = (PPFN) RemoveHeadList(&standby_page_list.entry);
-            PPTE pte = free_page->pte;
+    if (free_page_list.num_pages != 0) {
+        EnterCriticalSection(&free_page_list.lock);
+        free_page = (PPFN) RemoveHeadList(&free_page_list.entry);
+        free_page_list.num_pages--;
+        LeaveCriticalSection(&free_page_list.lock);
+    } else if (standby_page_list.num_pages != 0) {
+        EnterCriticalSection(&standby_page_list.lock);
+        free_page = (PPFN) RemoveHeadList(&standby_page_list.entry);
+        PPTE pte = free_page->pte;
 
-            // Make this zero so a subsequent fault on this VA will know to get this from disc
-            pte->software_format.frame_number = PAGE_ON_DISC;
+        // Make this zero so a subsequent fault on this VA will know to get this from disc
+        // This needs to be protected by the pte read lock, right now it is being done from the handler
+        pte->software_format.frame_number = PAGE_ON_DISC;
+        standby_page_list.num_pages--;
+        LeaveCriticalSection(&standby_page_list.lock);
+    } else {
+        // Ideally this is a last resort option and not something of high frequency
+        // LM Fix, this would be better suited to be its own thread running find_trim_candidates
+        // Instead we want to wait for an event for this thread after returning a failure status
+        // We would want to release our pte read lock as if we failed
 
-            standby_page_list.num_pages--;
-        } else {
-            continue;
-        }
-        break;
+        //printf("get_free_page : could not find trim candidates");
+        return NULL;
     }
+        // Be conscious of whether we need a lock here
         free_page->flags.state = ACTIVE;
         return free_page;
 }
 
-PPFN read_page_on_disc(PPTE pte)
+PPFN read_page_on_disc(PPTE pte, PPFN free_page)
 {
-    PPFN free_page = get_free_page();
+    // LM Fix we will want to fix this to not hold the pte read lock
     if (free_page == NULL)
     {
         printf("read_page_on_disc : could not get a free page");
@@ -234,9 +248,12 @@ PPFN read_page_on_disc(PPTE pte)
 }
 
 // LM Fix make the two functions below work with a ULONG64 instead of a char
+// LM Multi
 ULONG get_disc_index(VOID)
 {
+    EnterCriticalSection(&disc_in_use_lock);
     PUCHAR disc_spot = disc_in_use;
+    // LM Fix this doesn't fly anymore
     while (disc_spot != disc_end)
     {
         if (*disc_spot != 0xFF)
@@ -265,12 +282,13 @@ ULONG get_disc_index(VOID)
         // Throws away the rightmost lowest bit, shifts to the right and zero fills the high bit
         spot_cluster = spot_cluster>>1;
     }
-
+    LeaveCriticalSection(&disc_in_use_lock);
     return (disc_spot - disc_in_use) * 8 + disc_index;
 }
 
 VOID free_disc_space(ULONG64 disc_index)
 {
+    EnterCriticalSection(&disc_in_use_lock);
     PUCHAR disc_spot = disc_in_use + disc_index / 8;
     // Read in the byte
     UCHAR spot_cluster = *disc_spot;
@@ -280,8 +298,10 @@ VOID free_disc_space(ULONG64 disc_index)
     spot_cluster &= ~(1<<(disc_index % 8));
     // Write the byte out
     *disc_spot = spot_cluster;
+    LeaveCriticalSection(&disc_in_use_lock);
 }
 
+// LM Multi
 BOOLEAN write_modified_pages()
 {
     while (modified_page_list.num_pages != 0)
@@ -340,25 +360,45 @@ BOOLEAN write_modified_pages()
 VOID remove_from_list(PPFN pfn)
 {
     // Removes the pfn from whatever list its on, does not matter which list it is
+    EnterCriticalSection(pfn_change_lock);
+    PPFN_LIST listhead;
+
+    if (pfn->flags.state == MODIFIED)
+    {
+        listhead = &modified_page_list;
+    }
+    else if (pfn->flags.state == ACTIVE)
+    {
+        listhead = &active_page_list[pfn->flags.age];
+    }
+    else if (pfn->flags.state == CLEAN)
+    {
+        listhead = &standby_page_list;
+        free_disc_space(pfn->pte->software_format.disc_index);
+    }
+    EnterCriticalSection(&listhead.lock);
     PLIST_ENTRY prev_entry = pfn->entry.Blink;
     PLIST_ENTRY next_entry = pfn->entry.Flink;
 
     prev_entry->Flink = next_entry;
     next_entry->Blink = prev_entry;
 
-    if (pfn->flags.state == MODIFIED)
-    {
-        modified_page_list.num_pages--;
-    }
-    else if (pfn->flags.state == ACTIVE)
-    {
-        active_page_list[pfn->flags.age].num_pages--;
-    }
-    else
-    {
-        free_disc_space(pfn->pte->software_format.disc_index);
-        standby_page_list.num_pages--;
-    }
+    listhead->num_pages--;
+    LeaveCriticalSection(&listhead.lock);
+//    if (pfn->flags.state == MODIFIED)
+//    {
+//        modified_page_list.num_pages--;
+//    }
+//    else if (pfn->flags.state == ACTIVE)
+//    {
+//        active_page_list[pfn->flags.age].num_pages--;
+//    }
+//    else if (pfn->flags.state == CLEAN)
+//    {
+//        free_disc_space(pfn->pte->software_format.disc_index);
+//        standby_page_list.num_pages--;
+//    }
+
 }
 
 BOOLEAN page_fault_handler(BOOLEAN faulted, PVOID arbitrary_va)
@@ -370,6 +410,8 @@ BOOLEAN page_fault_handler(BOOLEAN faulted, PVOID arbitrary_va)
         printf("page_fault_handler : cannot get pte from va");
         return FALSE;
     }
+    // LM FIX Correctly initialize this lock and refactor to change the name to pte_lock
+    EnterCriticalSection(pte_read_lock);
     PTE pte_contents = *pte;
 
     // If this page has not faulted we still need to update its age and return
@@ -377,12 +419,25 @@ BOOLEAN page_fault_handler(BOOLEAN faulted, PVOID arbitrary_va)
     {
         PPFN pfn;
         pfn = pfn_from_frame_number(pte_contents.hardware_format.frame_number);
-        pfn->flags.age = 0;
         fake_faults++;
+        if (pfn->flags.age == 0)
+        {
+            LeaveCriticalSection(pte_read_lock);
+            return TRUE;
+        }
+
+        // LM FIX Do the same here but with this lock instead
+        EnterCriticalSection(pfn_change_lock);
+        pfn->flags.age = 0;
+        LeaveCriticalSection(pfn_change_lock);
+        // LM Fix need to move lists here
+        // LM Fix make swapping active lists a function
+
+        remove_from_list(pfn);
+        LeaveCriticalSection(pte_read_lock);
         return TRUE;
     }
     num_faults++;
-    //printf(" page_faulted ");
     // Connect the virtual address now - if that succeeds then
     // we'll be able to access it from now on.
 
@@ -394,37 +449,53 @@ BOOLEAN page_fault_handler(BOOLEAN faulted, PVOID arbitrary_va)
     if (pte_contents.software_format.frame_number == 0) {
     // This virtual address has never been accessed
         pfn = get_free_page();
+        if (pfn == NULL) {
+            LeaveCriticalSection(pte_read_lock);
+            printf("page_fault_handler : could not get a page");
+            return FALSE;
+        }
     } else if (pte_contents.software_format.frame_number == PAGE_ON_DISC) {
     // This virtual address has been previously accessed and its contents now exclusively exists on disc
     // It has been trimmed, written to disc, and its physical page has been reused.
     // Page on disc gets wiped out when we rewrite the frame number below
-        pfn = read_page_on_disc(pte);
+        pfn = get_free_page();
+        if (pfn == NULL) {
+            LeaveCriticalSection(pte_read_lock);
+            printf("page_fault_handler : could not get a page");
+            return FALSE;
+        }
+        read_page_on_disc(pte, pfn);
     } else {
     // This is an address that has been accessed and trimmed
     // This will unlink it from the standby or modified list
         pfn = pfn_from_frame_number(pte_contents.software_format.frame_number);
         remove_from_list(pfn);
     }
-    if (pfn == NULL) {
-        printf("page_fault_handler : could not get a page");
-        return FALSE;
-    }
 
+    // We have the page we need, now we need to mark it as active and map it
     pte->hardware_format.frame_number = frame_number_from_pfn(pfn);
     pte->hardware_format.valid = 1;
+
+    EnterCriticalSection(pfn_change_lock);
     pfn->pte = pte;
     pfn->flags.age = 0;
     pfn->flags.state = ACTIVE;
+    EnterCriticalSection(&active_page_list.lock);
     InsertTailList(&active_page_list[pfn->flags.age].entry, &pfn->entry);
     active_page_list[pfn->flags.age].num_pages++;
+    LeaveCriticalSection(&active_page_list.lock);
 
     ULONG_PTR frame_number = frame_number_from_pfn(pfn);
     if (MapUserPhysicalPages(arbitrary_va, 1, &frame_number) == FALSE) {
 
+        LeaveCriticalSection(pfn_change_lock);
+        LeaveCriticalSection(pte_read_lock);
         printf("page_fault_handler : could not map VA %p to page %llX\n", arbitrary_va,
                frame_number_from_pfn(pfn));
         return FALSE;
     }
+    LeaveCriticalSection(pfn_change_lock);
+    LeaveCriticalSection(pte_read_lock);
 
     /* No exception handler needed now since we have connected
     the virtual address above to one of our physical pages
@@ -432,7 +503,7 @@ BOOLEAN page_fault_handler(BOOLEAN faulted, PVOID arbitrary_va)
 
     return TRUE;
 }
-
+// Eventually move to api.c file
 PVOID allocate_memory(PULONG_PTR num_bytes)
 {
     *num_bytes = virtual_address_size;
