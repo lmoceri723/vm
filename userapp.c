@@ -65,11 +65,7 @@ BOOLEAN full_virtual_memory_test (VOID) {
             page_faulted = TRUE;
         }
 
-        if (page_fault_handler(page_faulted, arbitrary_va) == FALSE)
-        {
-            printf("full_virtual_memory_test : page fault handler failed");
-            return FALSE;
-        }
+        page_fault_handler(page_faulted, arbitrary_va);
 
         if (page_faulted) {
             *arbitrary_va = (ULONG_PTR) arbitrary_va;

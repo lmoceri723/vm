@@ -12,12 +12,19 @@
 
 int compare(const void * a, const void * b);
 
-unsigned i;
 PULONG_PTR physical_page_numbers;
 
 PHANDLE thread_handles;
+HANDLE system_handles[2];
 PULONG thread_ids;
+ULONG system_thread_ids[2];
 HANDLE physical_page_handle;
+HANDLE wake_aging_event;
+HANDLE modified_writing_event;
+
+CRITICAL_SECTION pte_read_lock;
+CRITICAL_SECTION pfn_lock;
+CRITICAL_SECTION disc_in_use_lock;
 
 SYSTEM_INFO info;
 ULONG num_processors;
@@ -81,7 +88,40 @@ BOOL GetPrivilege(VOID)
     return TRUE;
 }
 
-BOOLEAN initialize_threads()
+VOID initialize_locks(VOID)
+{
+    InitializeCriticalSection(&pte_read_lock);
+    InitializeCriticalSection(&pfn_lock);
+    InitializeCriticalSection(&disc_in_use_lock);
+
+    InitializeCriticalSection(&free_page_list.lock);
+    InitializeCriticalSection(&standby_page_list.lock);
+    InitializeCriticalSection(&modified_page_list.lock);
+
+    for (unsigned i = 0; i < NUMBER_OF_AGES; i++)
+    {
+        InitializeCriticalSection(&active_page_list[i].lock);
+    }
+}
+
+VOID initialize_events(VOID)
+{
+    wake_aging_event = CreateEvent(NULL, FALSE, FALSE, NULL);
+    if (wake_aging_event == NULL)
+    {
+        // LM Fix error message
+        fatal_error();
+    }
+
+    modified_writing_event = CreateEvent(NULL, FALSE, FALSE, NULL);
+    if (modified_writing_event == NULL)
+    {
+        // LM Fix error message
+        fatal_error();
+    }
+}
+
+VOID initialize_threads(VOID)
 {
     GetSystemInfo(&info);
     num_processors = info.dwNumberOfProcessors;
@@ -91,23 +131,21 @@ BOOLEAN initialize_threads()
 
     // 0 will need to be changed in the future
     // Add find trim candidates to system.h
-    CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE) find_trim_candidates, (LPVOID) (ULONG_PTR) 0, 0, &thread_ids[0]);
+    system_handles[0] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE) trim_thread,
+                 (LPVOID) (ULONG_PTR) 0, 0, &system_thread_ids[0]);
+    if (system_handles[0] == NULL)
+    {
+        // LM Fix error message
+        fatal_error();
+    }
 
-//    InitializeCriticalSection(&lock);
-
-//    for (i = 0; i < num_processors; i++)
-//    {
-//        thread_handles[i] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE) my_function, (LPVOID) (ULONG_PTR) i, 0, &thread_ids[i]);
-//        if (thread_handles[i] == NULL)
-//        {
-//            printf("ERROR");
-//            return 1;
-//        }
-//    }
-
-
-
-
+    system_handles[1] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE) modified_write_thread,
+                 (LPVOID) (ULONG_PTR) 1, 0, &system_thread_ids[1]);
+    if (system_handles[1] == NULL)
+    {
+        // LM Fix error message
+        fatal_error();
+    }
 }
 
 BOOLEAN create_page_file(ULONG_PTR bytes)
@@ -178,7 +216,7 @@ VOID initialize_page_lists(VOID)
     InitializeListHead(&standby_page_list.entry);
     standby_page_list.num_pages = 0;
 
-    for (i = 0; i < 8; i++)
+    for (unsigned i = 0; i < NUMBER_OF_AGES; i++)
     {
         InitializeListHead(&active_page_list[i].entry);
         active_page_list[i].num_pages = 0;
@@ -269,7 +307,7 @@ BOOLEAN initialize_pfn_metadata(VOID)
     PPFN pfn;
     ULONG_PTR frame_number;
 
-    for (i = 0; i < physical_page_count; i++)
+    for (ULONG_PTR i = 0; i < physical_page_count; i++)
     {
         frame_number = physical_page_numbers[i];
         if (frame_number == PAGE_ON_DISC || frame_number == 0) {
@@ -280,7 +318,7 @@ BOOLEAN initialize_pfn_metadata(VOID)
                      MEM_COMMIT,PAGE_READWRITE);
 
         if (result == NULL) {
-            printf("initialize_pfn_metadata : could not commit memory for pfn %u in pfn metadata\n", i);
+            printf("initialize_pfn_metadata : could not commit memory for pfn %Iu in pfn metadata\n", i);
             return FALSE;
         }
 
@@ -341,6 +379,9 @@ BOOLEAN initialize_system (VOID) {
 
     physical_page_handle = GetCurrentProcess();
 
+    initialize_locks();
+    initialize_events();
+
     if (initialize_pages() == FALSE)
     {
         printf("initialize_system : could not initialize pages\n");
@@ -379,6 +420,8 @@ BOOLEAN initialize_system (VOID) {
         printf("initialize_system : could not initialize pte metadata\n");
         return FALSE;
     }
+
+    initialize_threads();
 
     printf("initialize_system : system successfully initialized\n");
     return TRUE;
