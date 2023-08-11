@@ -12,7 +12,6 @@ ULONG_PTR num_faults;
 
 BOOLEAN full_virtual_memory_test (VOID) {
 
-    ULONG i;
     PULONG_PTR arbitrary_va;
     ULONG random_number;
     BOOL page_faulted;
@@ -32,7 +31,7 @@ BOOLEAN full_virtual_memory_test (VOID) {
 
     start_time = GetTickCount();
     num_addresses = NUM_ADDRESSES;
-    for (i = 0; i < num_addresses; i++)
+    for (unsigned i = 0; i < num_addresses; i++)
     {
         // Randomly access different portions of the virtual address
         // space we obtained above.
@@ -56,20 +55,19 @@ BOOLEAN full_virtual_memory_test (VOID) {
 
         arbitrary_va = p + (random_number * PAGE_SIZE) / sizeof(ULONG_PTR);
 
-        __try
-        {
-            *arbitrary_va = (ULONG_PTR) arbitrary_va;
-        }
-        __except(EXCEPTION_EXECUTE_HANDLER)
-        {
-            page_faulted = TRUE;
-        }
+        do {
+            __try
+            {
+                *arbitrary_va = (ULONG_PTR) arbitrary_va;
+                page_faulted = FALSE;
+            }
+            __except(EXCEPTION_EXECUTE_HANDLER)
+            {
+                page_faulted = TRUE;
+            }
 
-        page_fault_handler(page_faulted, arbitrary_va);
-
-        if (page_faulted) {
-            *arbitrary_va = (ULONG_PTR) arbitrary_va;
-        }
+            page_fault_handler(page_faulted, arbitrary_va);
+        } while (page_faulted == TRUE);
     }
 
     end_time = GetTickCount();

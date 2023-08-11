@@ -15,14 +15,17 @@ int compare(const void * a, const void * b);
 PULONG_PTR physical_page_numbers;
 
 PHANDLE thread_handles;
-HANDLE system_handles[2];
+HANDLE system_handles[3];
 PULONG thread_ids;
-ULONG system_thread_ids[2];
+ULONG system_thread_ids[3];
 HANDLE physical_page_handle;
+
 HANDLE wake_aging_event;
 HANDLE modified_writing_event;
+HANDLE populate_free_list_event;
+HANDLE pages_available_event;
 
-CRITICAL_SECTION pte_read_lock;
+CRITICAL_SECTION pte_lock;
 CRITICAL_SECTION pfn_lock;
 CRITICAL_SECTION disc_in_use_lock;
 
@@ -90,7 +93,7 @@ BOOL GetPrivilege(VOID)
 
 VOID initialize_locks(VOID)
 {
-    InitializeCriticalSection(&pte_read_lock);
+    InitializeCriticalSection(&pte_lock);
     InitializeCriticalSection(&pfn_lock);
     InitializeCriticalSection(&disc_in_use_lock);
 
@@ -109,14 +112,28 @@ VOID initialize_events(VOID)
     wake_aging_event = CreateEvent(NULL, FALSE, FALSE, NULL);
     if (wake_aging_event == NULL)
     {
-        // LM Fix error message
+        printf("initialize_events : could not initialize wake_aging_event");
         fatal_error();
     }
 
     modified_writing_event = CreateEvent(NULL, FALSE, FALSE, NULL);
     if (modified_writing_event == NULL)
     {
-        // LM Fix error message
+        printf("initialize_events : could not initialize modified_writing_event");
+        fatal_error();
+    }
+
+    populate_free_list_event = CreateEvent(NULL, FALSE, FALSE, NULL);
+    if (populate_free_list_event == NULL)
+    {
+        printf("initialize_events : could not initialize populate_free_list_event");
+        fatal_error();
+    }
+
+    pages_available_event = CreateEvent(NULL, FALSE, FALSE, NULL);
+    if (pages_available_event == NULL)
+    {
+        printf("initialize_events : could not initialize pages_available_event");
         fatal_error();
     }
 }
@@ -135,7 +152,7 @@ VOID initialize_threads(VOID)
                  (LPVOID) (ULONG_PTR) 0, 0, &system_thread_ids[0]);
     if (system_handles[0] == NULL)
     {
-        // LM Fix error message
+        printf("initialize_threads : could not initialize thread handle for trim_thread");
         fatal_error();
     }
 
@@ -143,7 +160,15 @@ VOID initialize_threads(VOID)
                  (LPVOID) (ULONG_PTR) 1, 0, &system_thread_ids[1]);
     if (system_handles[1] == NULL)
     {
-        // LM Fix error message
+        printf("initialize_threads : could not initialize thread handle for modified_write_thread");
+        fatal_error();
+    }
+
+    system_handles[2] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE) populate_free_list_thread,
+                                     (LPVOID) (ULONG_PTR) 2, 0, &system_thread_ids[2]);
+    if (system_handles[2] == NULL)
+    {
+        printf("initialize_threads : could not initialize thread handle for populate_free_list_thread");
         fatal_error();
     }
 }

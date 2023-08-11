@@ -32,12 +32,16 @@ extern PPFN pfn_metadata;
 
 extern HANDLE wake_aging_event;
 extern HANDLE modified_writing_event;
-extern CRITICAL_SECTION pte_read_lock;
+extern HANDLE populate_free_list_event;
+extern HANDLE pages_available_event;
+
+extern CRITICAL_SECTION pte_lock;
 extern CRITICAL_SECTION pfn_lock;
 extern CRITICAL_SECTION disc_in_use_lock;
 
 extern DWORD modified_write_thread(PVOID context);
 extern DWORD trim_thread(PVOID context);
+extern DWORD populate_free_list_thread(PVOID context);
 
 extern VOID fatal_error(VOID);
 extern BOOLEAN initialize_system(VOID);
