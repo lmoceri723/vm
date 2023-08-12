@@ -8,6 +8,8 @@
 
 #pragma comment(lib, "advapi32.lib")
 
+// TODO LM FIX add todo to every LM Fix
+
 PPTE pte_from_va(PVOID virtual_address);
 PVOID va_from_pte(PPTE pte);
 PPFN pfn_from_frame_number(ULONG64 frame_number);
@@ -144,6 +146,7 @@ BOOLEAN age_pages()
     {
         unsigned age = NUMBER_OF_AGES - i - 1;
 
+        EnterCriticalSection(&pte_lock);
         EnterCriticalSection(&pfn_lock);
         EnterCriticalSection(&active_page_list[age].lock);
 
@@ -163,6 +166,7 @@ BOOLEAN age_pages()
                     printf("age_pages : could not trim page");
                     LeaveCriticalSection(&active_page_list[age].lock);
                     LeaveCriticalSection(&pfn_lock);
+                    LeaveCriticalSection(&pte_lock);
                     return FALSE;
                 }
 
@@ -170,20 +174,22 @@ BOOLEAN age_pages()
             }
             else
             {
-                // LM Fix make swapping active lists a function
-                EnterCriticalSection(&active_page_list[age+1].lock);
+                // LM Fix make inserting into lists a function
+                EnterCriticalSection(&active_page_list[age + 1].lock);
 
                 remove_from_list(pfn, TRUE);
                 pfn->flags.age++;
                 InsertTailList(&active_page_list[age+1].entry, &pfn->entry);
+                active_page_list[age+1].num_pages++;
 
-                LeaveCriticalSection(&active_page_list[age+1].lock);
+                LeaveCriticalSection(&active_page_list[age + 1].lock);
 
             }
         }
         //TryEnterCriticalSection()
         LeaveCriticalSection(&active_page_list[age].lock);
         LeaveCriticalSection(&pfn_lock);
+        LeaveCriticalSection(&pte_lock);
     }
     return TRUE;
 }
@@ -226,29 +232,32 @@ DWORD populate_free_list_thread(PVOID context)
 
 PPFN get_free_page(VOID) {
 
-    PPFN free_page;
+    PPFN free_page = NULL;
 
     if (free_page_list.num_pages != 0) {
         EnterCriticalSection(&free_page_list.lock);
-        // LM Fix do this for the others
+        // Check twice to verify after getting a lock here
         if (free_page_list.num_pages != 0){
+            // LM Fix use containing record instead
             free_page = (PPFN) RemoveHeadList(&free_page_list.entry);
             free_page_list.num_pages--;
         }
         LeaveCriticalSection(&free_page_list.lock);
-    } else if (standby_page_list.num_pages != 0) {
+    }
+    if ((free_page == NULL) && (standby_page_list.num_pages != 0)){
         EnterCriticalSection(&standby_page_list.lock);
         if (standby_page_list.num_pages != 0) {
             free_page = (PPFN) RemoveHeadList(&standby_page_list.entry);
+            standby_page_list.num_pages--;
             PPTE pte = free_page->pte;
 
             // Make this zero so a subsequent fault on this VA will know to get this from disc
             // This needs to be protected by the pte read lock, right now it is being done from the handler
             pte->software_format.frame_number = PAGE_ON_DISC;
-            standby_page_list.num_pages--;
         }
         LeaveCriticalSection(&standby_page_list.lock);
-    } else {
+    }
+    if (free_page == NULL){
         // Ideally this is a last resort option and not something of high frequency
         // LM Fix, this would be better suited to be its own thread running find_trim_candidates
         // Instead we want to wait for an event for this thread after returning a failure status
@@ -353,6 +362,7 @@ VOID free_disc_space(ULONG64 disc_index)
 
 VOID write_page_to_disc(VOID)
 {
+    EnterCriticalSection(&pte_lock);
     EnterCriticalSection(&pfn_lock);
     EnterCriticalSection(&modified_page_list.lock);
 
@@ -387,6 +397,8 @@ VOID write_page_to_disc(VOID)
         modified_page_list.num_pages++;
 
         LeaveCriticalSection(&modified_page_list.lock);
+        LeaveCriticalSection(&pfn_lock);
+        LeaveCriticalSection(&pte_lock);
         // Even though we don't write here, we return true, so we can try it again later
         return;
     }
@@ -395,6 +407,7 @@ VOID write_page_to_disc(VOID)
     actual_space = (PVOID) ((ULONG_PTR) disc_space + (disc_index * PAGE_SIZE));
 
     memcpy(actual_space, modified_write_va, PAGE_SIZE);
+
 
     pfn->pte->software_format.disc_index = disc_index;
 
@@ -413,6 +426,7 @@ VOID write_page_to_disc(VOID)
 
     LeaveCriticalSection(&standby_page_list.lock);
     LeaveCriticalSection(&pfn_lock);
+    LeaveCriticalSection(&pte_lock);
 
     SetEvent(pages_available_event);
 }
@@ -504,7 +518,7 @@ VOID page_fault_handler(BOOLEAN faulted, PVOID arbitrary_va)
             return;
         }
 
-        // LM FIX Do the same here but with this lock instead
+        //  TODO LM Fix Do the same here but with this lock instead
         EnterCriticalSection(&pfn_lock);
         ULONG age = pfn->flags.age;
         if (age == 0)
@@ -520,9 +534,11 @@ VOID page_fault_handler(BOOLEAN faulted, PVOID arbitrary_va)
 
         remove_from_list(pfn, TRUE);
         InsertTailList(&active_page_list[0].entry, &pfn->entry);
+        active_page_list[0].num_pages++;
 
-        EnterCriticalSection(&active_page_list[age].lock);
+        LeaveCriticalSection(&active_page_list[age].lock);
         LeaveCriticalSection(&active_page_list[0].lock);
+
         LeaveCriticalSection(&pfn_lock);
         LeaveCriticalSection(&pte_lock);
         return;
