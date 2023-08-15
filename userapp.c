@@ -5,7 +5,7 @@
 
 #pragma comment(lib, "advapi32.lib")
 
-#define NUM_ADDRESSES MB(1)
+#define NUM_ADDRESSES MB(1 / 10)
 
 ULONG_PTR fake_faults;
 ULONG_PTR num_faults;
@@ -66,7 +66,7 @@ BOOLEAN full_virtual_memory_test (VOID) {
                 page_faulted = TRUE;
             }
 
-            page_fault_handler(page_faulted, arbitrary_va);
+            page_fault_handler(arbitrary_va);
         } while (page_faulted == TRUE);
     }
 

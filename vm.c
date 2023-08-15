@@ -19,6 +19,7 @@ PPFN get_free_page(VOID);
 PPFN read_page_on_disc(PPTE pte, PPFN free_page);
 VOID remove_from_list(PPFN pfn, BOOLEAN holds_locks);
 VOID free_disc_space(ULONG64 disc_index);
+VOID check_list_integrity(PPFN_LIST listhead, PPFN match_pfn);
 
 ULONG_PTR virtual_address_size;
 ULONG_PTR physical_page_count;
@@ -130,6 +131,7 @@ BOOLEAN trim(PPFN page)
 
     InsertTailList(&modified_page_list.entry, &page->entry);
     modified_page_list.num_pages++;
+    check_list_integrity(&modified_page_list, page);
 
     LeaveCriticalSection(&modified_page_list.lock);
 
@@ -159,6 +161,11 @@ BOOLEAN age_pages()
             pfn = CONTAINING_RECORD(flink_entry, PFN, entry);
             flink_entry = pfn->entry.Flink;
 
+            if (age != pfn->flags.age)
+            {
+                fatal_error();
+            }
+
             if (age == NUMBER_OF_AGES - 1)
             {
                 if (trim(pfn) == FALSE)
@@ -174,13 +181,16 @@ BOOLEAN age_pages()
             }
             else
             {
-                // LM Fix make inserting into lists a function
-                EnterCriticalSection(&active_page_list[age + 1].lock);
 
                 remove_from_list(pfn, TRUE);
                 pfn->flags.age++;
+
+                // LM Fix make inserting into lists a function
+                EnterCriticalSection(&active_page_list[age + 1].lock);
+
                 InsertTailList(&active_page_list[age+1].entry, &pfn->entry);
                 active_page_list[age+1].num_pages++;
+                check_list_integrity(&active_page_list[age+1], pfn);
 
                 LeaveCriticalSection(&active_page_list[age + 1].lock);
 
@@ -212,26 +222,9 @@ DWORD trim_thread(PVOID context)
     }
 }
 
-DWORD populate_free_list_thread(PVOID context)
-{
-    while (TRUE)
-    {
-        // The conditions that cause this to start running could become false between when it is marked as ready and ran
-        // We always need to reevaluate this to see whether its actually needed
-        if (free_page_list.num_pages + standby_page_list.num_pages <= physical_page_count / 4)
-        {
-            SetEvent(wake_aging_event);
-            // We might want another event that takes clean pages and converts them to free
-        }
 
-        // wait for memory running low object as well as system exit object
-        WaitForSingleObject(populate_free_list_event, INFINITE);
-    }
-}
-
-
+// This is called with a pte lock
 PPFN get_free_page(VOID) {
-
     PPFN free_page = NULL;
 
     if (free_page_list.num_pages != 0) {
@@ -268,8 +261,8 @@ PPFN get_free_page(VOID) {
         return NULL;
     }
         // Be conscious of whether we need a lock here
-        free_page->flags.state = ACTIVE;
-        SetEvent(populate_free_list_event);
+        //free_page->flags.state = ACTIVE;
+        SetEvent(wake_aging_event);
         return free_page;
 }
 
@@ -393,8 +386,9 @@ VOID write_page_to_disc(VOID)
 
         EnterCriticalSection(&modified_page_list.lock);
 
-        InsertHeadList(&modified_page_list.entry, &pfn->entry);
+        InsertTailList(&modified_page_list.entry, &pfn->entry);
         modified_page_list.num_pages++;
+        check_list_integrity(&modified_page_list, pfn);
 
         LeaveCriticalSection(&modified_page_list.lock);
         LeaveCriticalSection(&pfn_lock);
@@ -407,7 +401,6 @@ VOID write_page_to_disc(VOID)
     actual_space = (PVOID) ((ULONG_PTR) disc_space + (disc_index * PAGE_SIZE));
 
     memcpy(actual_space, modified_write_va, PAGE_SIZE);
-
 
     pfn->pte->software_format.disc_index = disc_index;
 
@@ -423,6 +416,7 @@ VOID write_page_to_disc(VOID)
 
     InsertTailList(&standby_page_list.entry, &pfn->entry);
     standby_page_list.num_pages++;
+    check_list_integrity(&standby_page_list, pfn);
 
     LeaveCriticalSection(&standby_page_list.lock);
     LeaveCriticalSection(&pfn_lock);
@@ -437,6 +431,7 @@ DWORD modified_write_thread(PVOID context)
     {
         // The conditions that cause this to start running could become false between when it is marked as ready and ran
         // We always need to reevaluate this to see whether its actually needed
+        // LM Fix can the trim always get what we want?
         while (modified_page_list.num_pages >= physical_page_count / 4)
         {
             // We are not just looking the other way here, we have a trust model
@@ -457,7 +452,6 @@ VOID remove_from_list(PPFN pfn, BOOLEAN holds_locks)
         EnterCriticalSection(&pfn_lock);
     }
     PPFN_LIST listhead;
-
     if (pfn->flags.state == MODIFIED)
     {
         listhead = &modified_page_list;
@@ -466,6 +460,7 @@ VOID remove_from_list(PPFN pfn, BOOLEAN holds_locks)
     {
         listhead = &active_page_list[pfn->flags.age];
     }
+    // STANDBY
     else
     {
         // This is on the standby list
@@ -477,6 +472,7 @@ VOID remove_from_list(PPFN pfn, BOOLEAN holds_locks)
     {
         EnterCriticalSection(&listhead->lock);
     }
+    check_list_integrity(listhead, pfn);
 
     PLIST_ENTRY prev_entry = pfn->entry.Blink;
     PLIST_ENTRY next_entry = pfn->entry.Flink;
@@ -486,6 +482,10 @@ VOID remove_from_list(PPFN pfn, BOOLEAN holds_locks)
 
     listhead->num_pages--;
 
+    pfn->entry.Flink = NULL;
+    pfn->entry.Blink = NULL;
+
+    check_list_integrity(listhead, NULL);
     if (holds_locks == FALSE)
     {
         LeaveCriticalSection(&listhead->lock);
@@ -493,7 +493,71 @@ VOID remove_from_list(PPFN pfn, BOOLEAN holds_locks)
     }
 }
 
-VOID page_fault_handler(BOOLEAN faulted, PVOID arbitrary_va)
+// Checks the integrity of a list
+// Helpful to use when debugging
+VOID check_list_integrity(PPFN_LIST listhead, PPFN match_pfn)
+{
+    PLIST_ENTRY flink_entry;
+    PPFN pfn;
+    ULONG state;
+    ULONG age;
+    ULONG count;
+    ULONG matched;
+
+    // If the wrong list is being checked here
+    if (listhead->lock.OwningThread == NULL)
+    {
+        DebugBreak();
+    }
+    flink_entry = listhead->entry.Flink;
+    matched = 0;
+    count = 0;
+
+    if (match_pfn != NULL)
+    {
+        state = match_pfn->flags.state;
+        age = match_pfn->flags.age;
+    }
+
+    while (flink_entry != &listhead->entry) {
+
+        pfn = CONTAINING_RECORD(flink_entry, PFN, entry);
+        flink_entry = pfn->entry.Flink;
+
+        if (pfn == match_pfn)
+        {
+            if (matched != 0)
+            {
+                DebugBreak();
+            }
+            matched++;
+        }
+        if (match_pfn != NULL) {
+
+            if (pfn->flags.state != state) {
+                DebugBreak();
+            }
+
+            if (pfn->flags.state == ACTIVE && pfn->flags.age != age) {
+                DebugBreak();
+            }
+        }
+
+        count++;
+    }
+
+    if (count != listhead->num_pages)
+    {
+        DebugBreak();
+    }
+
+    if (match_pfn != NULL && matched != 1)
+    {
+        DebugBreak();
+    }
+}
+
+VOID page_fault_handler(PVOID arbitrary_va)
 {
     // This now needs to be done whether a fault occurs or not in order to update a pages age
     PPTE pte = pte_from_va(arbitrary_va);
@@ -507,7 +571,7 @@ VOID page_fault_handler(BOOLEAN faulted, PVOID arbitrary_va)
     PTE pte_contents = *pte;
 
     // If this page has not faulted we still need to update its age and return
-    if (faulted == FALSE)
+    if (pte_contents.hardware_format.valid == 1)
     {
         PPFN pfn;
         pfn = pfn_from_frame_number(pte_contents.hardware_format.frame_number);
@@ -530,11 +594,13 @@ VOID page_fault_handler(BOOLEAN faulted, PVOID arbitrary_va)
         EnterCriticalSection(&active_page_list[0].lock);
         EnterCriticalSection(&active_page_list[age].lock);
 
+        // Changes age after remove as remove uses age to get the listhead
+        remove_from_list(pfn, TRUE);
         pfn->flags.age = 0;
 
-        remove_from_list(pfn, TRUE);
         InsertTailList(&active_page_list[0].entry, &pfn->entry);
         active_page_list[0].num_pages++;
+        check_list_integrity(&active_page_list[0], pfn);
 
         LeaveCriticalSection(&active_page_list[age].lock);
         LeaveCriticalSection(&active_page_list[0].lock);
@@ -585,15 +651,15 @@ VOID page_fault_handler(BOOLEAN faulted, PVOID arbitrary_va)
 
     // Acquiring this lock so that the pfn's age is not changed by aging or trimming threads
     EnterCriticalSection(&pfn_lock);
-    ULONG age = pfn->flags.age;
     EnterCriticalSection(&active_page_list[0].lock);
-
-    InsertTailList(&active_page_list[0].entry, &pfn->entry);
-    active_page_list[0].num_pages++;
 
     pfn->pte = pte;
     pfn->flags.age = 0;
     pfn->flags.state = ACTIVE;
+
+    InsertTailList(&active_page_list[0].entry, &pfn->entry);
+    active_page_list[0].num_pages++;
+    check_list_integrity(&active_page_list[0], pfn);
 
     LeaveCriticalSection(&active_page_list[0].lock);
 

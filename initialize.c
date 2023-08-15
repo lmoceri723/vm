@@ -9,15 +9,16 @@
 
 #define NUMBER_OF_PHYSICAL_PAGES                 (MB (1) / PAGE_SIZE)
 #define NUMBER_OF_DISC_PAGES                     (MB (16) / PAGE_SIZE)
+#define NUMBER_OF_SYSTEM_THREADS                 2
 
 int compare(const void * a, const void * b);
 
 PULONG_PTR physical_page_numbers;
 
 PHANDLE thread_handles;
-HANDLE system_handles[3];
+HANDLE system_handles[NUMBER_OF_SYSTEM_THREADS];
 PULONG thread_ids;
-ULONG system_thread_ids[3];
+ULONG system_thread_ids[NUMBER_OF_SYSTEM_THREADS];
 HANDLE physical_page_handle;
 
 HANDLE wake_aging_event;
@@ -164,13 +165,13 @@ VOID initialize_threads(VOID)
         fatal_error();
     }
 
-    system_handles[2] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE) populate_free_list_thread,
-                                     (LPVOID) (ULONG_PTR) 2, 0, &system_thread_ids[2]);
-    if (system_handles[2] == NULL)
-    {
-        printf("initialize_threads : could not initialize thread handle for populate_free_list_thread");
-        fatal_error();
-    }
+    //system_handles[2] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE) populate_free_list_thread,
+//                                     (LPVOID) (ULONG_PTR) 2, 0, &system_thread_ids[2]);
+//    if (system_handles[2] == NULL)
+//    {
+//        printf("initialize_threads : could not initialize thread handle for populate_free_list_thread");
+//        fatal_error();
+//    }
 }
 
 BOOLEAN create_page_file(ULONG_PTR bytes)
@@ -335,6 +336,8 @@ BOOLEAN initialize_pfn_metadata(VOID)
     for (ULONG_PTR i = 0; i < physical_page_count; i++)
     {
         frame_number = physical_page_numbers[i];
+        // PAGE_ON_DISC is used in a pte to signify that its page is on disc
+        // Frame number of 0 is used to signify that a pte has not yet been connected to a page and is brand new
         if (frame_number == PAGE_ON_DISC || frame_number == 0) {
             continue;
         }
