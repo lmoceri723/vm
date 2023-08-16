@@ -5,10 +5,13 @@
 
 #pragma comment(lib, "advapi32.lib")
 
-#define NUM_ADDRESSES MB(1 / 10)
+#define NUM_ADDRESSES MB(1) / 10
 
 ULONG_PTR fake_faults;
 ULONG_PTR num_faults;
+ULONG_PTR num_first_accesses;
+ULONG_PTR num_reaccesses;
+
 
 BOOLEAN full_virtual_memory_test (VOID) {
 
@@ -18,6 +21,7 @@ BOOLEAN full_virtual_memory_test (VOID) {
     PULONG_PTR p;
     ULONG_PTR num_bytes;
     ULONG_PTR num_addresses;
+    ULONG_PTR local;
 
     ULONG_PTR virtual_address_size_in_pages;
 
@@ -58,6 +62,20 @@ BOOLEAN full_virtual_memory_test (VOID) {
         do {
             __try
             {
+                local = *arbitrary_va;
+                if (local != 0)
+                {
+                    if (local != (ULONG_PTR) arbitrary_va)
+                    {
+                        DebugBreak();
+                    }
+                    num_reaccesses++;
+                }
+                else
+                {
+                    num_first_accesses++;
+                }
+
                 *arbitrary_va = (ULONG_PTR) arbitrary_va;
                 page_faulted = FALSE;
             }

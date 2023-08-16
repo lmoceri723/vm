@@ -25,6 +25,7 @@ HANDLE wake_aging_event;
 HANDLE modified_writing_event;
 HANDLE populate_free_list_event;
 HANDLE pages_available_event;
+HANDLE system_exit_event;
 
 CRITICAL_SECTION pte_lock;
 CRITICAL_SECTION pfn_lock;
@@ -133,6 +134,13 @@ VOID initialize_events(VOID)
 
     pages_available_event = CreateEvent(NULL, FALSE, FALSE, NULL);
     if (pages_available_event == NULL)
+    {
+        printf("initialize_events : could not initialize pages_available_event");
+        fatal_error();
+    }
+
+    system_exit_event = CreateEvent(NULL, TRUE, FALSE, NULL);
+    if (system_exit_event == NULL)
     {
         printf("initialize_events : could not initialize pages_available_event");
         fatal_error();
@@ -268,6 +276,16 @@ BOOLEAN initialize_readwrite_va(VOID)
 
     if (modified_read_va == NULL) {
         printf("initialize_readwrite_va : could not reserve memory for modified write va\n");
+        return FALSE;
+    }
+
+    repurpose_zero_va = VirtualAlloc(NULL,
+                                    PAGE_SIZE,
+                                    MEM_RESERVE | MEM_PHYSICAL,
+                                    PAGE_READWRITE);
+
+    if (repurpose_zero_va == NULL) {
+        printf("initialize_readwrite_va : could not reserve memory for repurpose zero va\n");
         return FALSE;
     }
 
@@ -458,6 +476,9 @@ BOOLEAN initialize_system (VOID) {
 VOID deinitialize_system (VOID)
 {
     // Now that we're done with our memory we can be a good citizen and free it.
+    SetEvent(system_exit_event);
+    WaitForMultipleObjects(NUMBER_OF_SYSTEM_THREADS, system_handles, TRUE, INFINITE);
+
     free(pte_base);
     VirtualFree(modified_read_va, PAGE_SIZE, MEM_RELEASE);
     VirtualFree(modified_write_va, PAGE_SIZE, MEM_RELEASE);

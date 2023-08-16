@@ -7,7 +7,9 @@
 #include "userapp.h"
 
 #pragma comment(lib, "advapi32.lib")
-
+#if 0
+#define DBG                TRUE
+#endif
 // TODO LM FIX add todo to every LM Fix
 
 PPTE pte_from_va(PVOID virtual_address);
@@ -32,6 +34,7 @@ PPTE pte_base;
 PVOID va_base;
 PVOID modified_write_va;
 PVOID modified_read_va;
+PVOID repurpose_zero_va;
 PVOID disc_space;
 PUCHAR disc_in_use;
 PUCHAR disc_end;
@@ -103,6 +106,7 @@ VOID fatal_error(VOID)
 
 
 // This puts a page on the modified list
+// LM Fix make void
 BOOLEAN trim(PPFN page)
 {
     PVOID user_va = va_from_pte(page->pte);
@@ -143,7 +147,9 @@ BOOLEAN age_pages()
 {
     PLIST_ENTRY flink_entry;
     PPFN pfn;
+    BOOLEAN worked;
 
+    worked = FALSE;
     for (unsigned i = 0; i < NUMBER_OF_AGES; i++)
     {
         unsigned age = NUMBER_OF_AGES - i - 1;
@@ -155,6 +161,7 @@ BOOLEAN age_pages()
         flink_entry = active_page_list[age].entry.Flink;
         while (flink_entry != &active_page_list[age].entry)
         {
+            worked = TRUE;
             // We deliberately capture the Flink now
             // The page might enter the modified list and be assigned a new one
 
@@ -176,7 +183,6 @@ BOOLEAN age_pages()
                     LeaveCriticalSection(&pte_lock);
                     return FALSE;
                 }
-
                 SetEvent(modified_writing_event);
             }
             else
@@ -201,24 +207,35 @@ BOOLEAN age_pages()
         LeaveCriticalSection(&pfn_lock);
         LeaveCriticalSection(&pte_lock);
     }
-    return TRUE;
+    return worked;
 }
 
 // Nobody gets to call this, it needs to be invoked in its own thread context
 DWORD trim_thread(PVOID context)
 {
+    HANDLE handles[2];
+
+    handles[0] = system_exit_event;
+    handles[1] = wake_aging_event;
+
     while (TRUE)
     {
+        ULONG index = WaitForMultipleObjects(ARRAYSIZE(handles), handles,
+                                             FALSE, INFINITE);
+        if (index == 0)
+        {
+            break;
+        }
         // The conditions that cause this to start running could become false between when it is marked as ready and ran
         // We always need to reevaluate this to see whether its actually needed
         while (free_page_list.num_pages + standby_page_list.num_pages <= physical_page_count / 4)
         {
             // We are not just looking the other way here, we have a trust model
-            age_pages();
+            if (age_pages() == FALSE)
+            {
+                break;
+            }
         }
-
-        // wait for memory running low object as well as system exit object
-        WaitForSingleObject(wake_aging_event, INFINITE);
     }
 }
 
@@ -242,7 +259,23 @@ PPFN get_free_page(VOID) {
         if (standby_page_list.num_pages != 0) {
             free_page = (PPFN) RemoveHeadList(&standby_page_list.entry);
             standby_page_list.num_pages--;
+
             PPTE pte = free_page->pte;
+
+            ULONG_PTR frame_number = frame_number_from_pfn(free_page);
+            if (MapUserPhysicalPages(repurpose_zero_va, 1, &frame_number) == FALSE) {
+                printf("page_fault_handler : could not map VA %p to page %Iu\n", repurpose_zero_va,
+                       frame_number);
+                fatal_error();
+            }
+
+            memset(repurpose_zero_va, 0, PAGE_SIZE);
+
+            if (MapUserPhysicalPages(repurpose_zero_va, 1, NULL) == FALSE) {
+                printf("page_fault_handler : could not unmap VA %p to page %Iu\n", repurpose_zero_va,
+                       frame_number);
+                fatal_error();
+            }
 
             // Make this zero so a subsequent fault on this VA will know to get this from disc
             // This needs to be protected by the pte read lock, right now it is being done from the handler
@@ -317,6 +350,7 @@ ULONG get_disc_index(VOID)
 
     if (disc_spot == disc_end)
     {
+        LeaveCriticalSection(&disc_in_use_lock);
         return MAXULONG32;
     }
     ULONG disc_index = 0;
@@ -353,7 +387,7 @@ VOID free_disc_space(ULONG64 disc_index)
     LeaveCriticalSection(&disc_in_use_lock);
 }
 
-VOID write_page_to_disc(VOID)
+BOOLEAN write_page_to_disc(VOID)
 {
     EnterCriticalSection(&pte_lock);
     EnterCriticalSection(&pfn_lock);
@@ -394,7 +428,7 @@ VOID write_page_to_disc(VOID)
         LeaveCriticalSection(&pfn_lock);
         LeaveCriticalSection(&pte_lock);
         // Even though we don't write here, we return true, so we can try it again later
-        return;
+        return FALSE;
     }
 
     PVOID actual_space;
@@ -423,23 +457,40 @@ VOID write_page_to_disc(VOID)
     LeaveCriticalSection(&pte_lock);
 
     SetEvent(pages_available_event);
+
+    return TRUE;
 }
 
 DWORD modified_write_thread(PVOID context)
 {
+    HANDLE handles[2];
+
+    handles[0] = system_exit_event;
+    handles[1] = modified_writing_event;
+
     while (TRUE)
     {
+        // Wait for modified_writing_event as well as system exit object
+        ULONG index = WaitForMultipleObjects(ARRAYSIZE(handles), handles,
+                                             FALSE, INFINITE);
+        if (index == 0)
+        {
+            break;
+        }
         // The conditions that cause this to start running could become false between when it is marked as ready and ran
         // We always need to reevaluate this to see whether its actually needed
         // LM Fix can the trim always get what we want?
         while (modified_page_list.num_pages >= physical_page_count / 4)
         {
             // We are not just looking the other way here, we have a trust model
-            write_page_to_disc();
+            if (write_page_to_disc() == FALSE)
+            {
+                // LM FIX we need to have an event here to wait for a modified spot like we do for free_page == NULL
+                // In the page fault handler, put setevent in free disc spot
+                break;
+            }
         }
 
-        // wait for memory running low object as well as system exit object
-        WaitForSingleObject(modified_writing_event, INFINITE);
     }
 }
 
@@ -497,6 +548,7 @@ VOID remove_from_list(PPFN pfn, BOOLEAN holds_locks)
 // Helpful to use when debugging
 VOID check_list_integrity(PPFN_LIST listhead, PPFN match_pfn)
 {
+#if DBG
     PLIST_ENTRY flink_entry;
     PPFN pfn;
     ULONG state;
@@ -555,6 +607,7 @@ VOID check_list_integrity(PPFN_LIST listhead, PPFN match_pfn)
     {
         DebugBreak();
     }
+#endif
 }
 
 VOID page_fault_handler(PVOID arbitrary_va)
@@ -624,6 +677,7 @@ VOID page_fault_handler(PVOID arbitrary_va)
         pfn = get_free_page();
         if (pfn == NULL) {
             LeaveCriticalSection(&pte_lock);
+            // LM Fix think about waiting for multiple when multiple threads fault on pages
             WaitForSingleObject(pages_available_event, INFINITE);
             return;
         }
