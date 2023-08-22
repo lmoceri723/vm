@@ -1,4 +1,3 @@
-// IF YOU SEE THIS REMOTE COMMIT WORKS
 #include <stdio.h>
 #include <windows.h>
 #include <time.h>
@@ -12,6 +11,7 @@
 #define DBG                TRUE
 #endif
 // TODO LM FIX add todo to every LM Fix
+// Test 123
 
 PPTE pte_from_va(PVOID virtual_address);
 PVOID va_from_pte(PPTE pte);
@@ -200,7 +200,6 @@ BOOLEAN age_pages()
                 check_list_integrity(&active_page_list[age+1], pfn);
 
                 LeaveCriticalSection(&active_page_list[age + 1].lock);
-
             }
         }
         //TryEnterCriticalSection()
