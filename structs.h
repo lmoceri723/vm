@@ -11,28 +11,45 @@
 typedef struct {
     ULONG64 valid:1;
     ULONG64 frame_number:40;
-} VALID_PTE /*, *PVALID_PTE*/;
+    ULONG64 age:3;
+} ACTIVE_PTE /*, *PACTIVE_PTE*/;
 
 typedef struct {
     ULONG64 valid:1;
     ULONG64 frame_number:40;
     // This creates a limit of how many disc indexes can exist,
     // Can be potentially fixed by separating this structure into two formats
+
+    // This needs to be moved to the PFN
     ULONG64 disc_index:23;
 } INVALID_PTE/*, *PINVALID_PTE*/;
 
 typedef struct {
+    ULONG64 valid:1;
+    ULONG64 disc_index:40;
+    // This creates a limit of how many disc indexes can exist,
+    // Can be potentially fixed by separating this structure into two formats
+} DISC_PTE/*, *PDISC_PTE*/;
+
+typedef struct {
     union {
-        VALID_PTE hardware_format;
+        ACTIVE_PTE active_format;
         INVALID_PTE software_format;
     };
 } PTE, *PPTE;
 
+// These need to be separate data structures so the cpu can quickly read them
 typedef struct {
-    // States are free, clean, zeroed, active, and modified
+    PULONG64 bit_map;
+    ULONG num_active_pages;
+
+}PTE_REGION, *PPTE_REGION;
+
+typedef struct {
+    // States are FREE, CLEAN, ZEROED (to be added), ACTIVE, and MODIFIED
     ULONG state:3;
-    // Age can range from 0 to 7
-    ULONG age:3;
+    // TODO these locks can be made into single bits instead of massive CRITICAL_SECTIONS
+    CRITICAL_SECTION lock;
 }PFN_FLAGS/*, *PPFN_FLAGS*/;
 
 typedef struct {

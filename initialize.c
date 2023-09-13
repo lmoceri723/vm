@@ -7,9 +7,6 @@
 
 #pragma comment(lib, "advapi32.lib")
 
-#define NUMBER_OF_PHYSICAL_PAGES                 (MB (1) / PAGE_SIZE)
-#define NUMBER_OF_DISC_PAGES                     (MB (16) / PAGE_SIZE)
-#define NUMBER_OF_SYSTEM_THREADS                 2
 
 int compare(const void * a, const void * b);
 
@@ -29,6 +26,7 @@ HANDLE system_exit_event;
 
 CRITICAL_SECTION pte_lock;
 CRITICAL_SECTION pfn_lock;
+CRITICAL_SECTION pte_region_locks[NUMBER_OF_PTE_REGIONS];
 CRITICAL_SECTION disc_in_use_lock;
 
 SYSTEM_INFO info;
@@ -106,6 +104,10 @@ VOID initialize_locks(VOID)
     for (unsigned i = 0; i < NUMBER_OF_AGES; i++)
     {
         InitializeCriticalSection(&active_page_list[i].lock);
+    }
+    for (unsigned i = 0; i < NUMBER_OF_PTE_REGIONS; i++)
+    {
+        InitializeCriticalSection(&pte_region_locks[i]);
     }
 }
 
@@ -338,6 +340,7 @@ BOOLEAN initialize_pte_metadata(VOID)
 
 BOOLEAN initialize_pfn_metadata(VOID)
 {
+    // TODO Think about seprating into two arrays to save va space
     ULONG_PTR range = physical_page_numbers[physical_page_count - 1];
 
     pfn_metadata = VirtualAlloc(NULL,range * sizeof(PFN),
@@ -355,6 +358,7 @@ BOOLEAN initialize_pfn_metadata(VOID)
     {
         frame_number = physical_page_numbers[i];
         // PAGE_ON_DISC is used in a pte to signify that its page is on disc
+        // TODO May not be needed
         // Frame number of 0 is used to signify that a pte has not yet been connected to a page and is brand new
         if (frame_number == PAGE_ON_DISC || frame_number == 0) {
             continue;
@@ -370,8 +374,10 @@ BOOLEAN initialize_pfn_metadata(VOID)
 
         memset(pfn_metadata + physical_page_numbers[i], 0, sizeof(PFN));
 
+        // TODO can result go here?
         pfn = pfn_from_frame_number(frame_number);
         pfn->flags.state = FREE;
+        InitializeCriticalSection(&pfn->flags.lock);
         InsertTailList(&free_page_list.entry, &pfn->entry);
         free_page_list.num_pages++;
     }
