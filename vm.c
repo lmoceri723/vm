@@ -15,6 +15,7 @@
 // TODO LM FIX find the right version of %Iu to suppress warnings
 // TODO LM FIX find a way to suppress unused parameter warnings
 // TODO LM FIX ensure consistent conventions with opening and closing {} curly brackets
+// TODO LM FIX re-evaluate all ULONG_PTR variables
 
 PPTE pte_from_va(PVOID virtual_address);
 PVOID va_from_pte(PPTE pte);
@@ -37,7 +38,6 @@ ULONG_PTR disc_page_count;
 PFN_LIST free_page_list;
 PFN_LIST modified_page_list;
 PFN_LIST standby_page_list;
-PFN_LIST active_page_list[NUMBER_OF_AGES];
 PPTE pte_base;
 PVOID va_base;
 PVOID modified_write_va;
@@ -49,18 +49,22 @@ PUCHAR disc_end;
 PPFN pfn_metadata;
 
 // These functions convert between matching linear structures (pte and va) (pfn and frame number)
-// TODO read over this and write comments (consider compiler automatic type additions/conversions)
+// TODO read over them and write comments (consider compiler automatic type additions/conversions)
 PPTE pte_from_va(PVOID virtual_address)
 {
+    // Null check done for security purposes
     if ((ULONG_PTR) virtual_address > (ULONG_PTR) va_base + virtual_address_size)
     {
         printf("pte_from_va : virtual address is out of valid range");
         return NULL;
     }
+
+
     ULONG_PTR difference = (ULONG_PTR) virtual_address - (ULONG_PTR) va_base;
     difference /= PAGE_SIZE;
 
-    return pte_base + difference/* * sizeof(PTE)*/;
+    // The compiler automatically multiplies the difference by the size of a pte, so it is not required here
+    return pte_base + difference;
 }
 
 PVOID va_from_pte(PPTE pte)
@@ -69,6 +73,7 @@ PVOID va_from_pte(PPTE pte)
     difference *= PAGE_SIZE;
 
     PVOID result = (PVOID) ((ULONG_PTR) va_base + difference);
+
     if ((ULONG_PTR) result > (ULONG_PTR) va_base + virtual_address_size)
     {
         printf("va_from_pte : virtual address is out of valid range");
@@ -77,9 +82,10 @@ PVOID va_from_pte(PPTE pte)
     return result;
 }
 
-// LM Fix check for out of range
+// TODO add out of range checks here
 PPFN pfn_from_frame_number(ULONG64 frame_number)
 {
+    // Again, the compiler implicitly multiplies frame number by sizeof(PFN)
     return pfn_metadata + frame_number;
 }
 
