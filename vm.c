@@ -106,6 +106,7 @@ VOID fatal_error(VOID)
 
 
 // TODO read over this and write comments
+// This is better to be done after finalizing aging/trimming pages
 // This function puts an individual page on the modified list
 void trim(PPFN page)
 {
@@ -183,29 +184,31 @@ VOID age_pages()
     }
 }
 
-// TODO read over this and write comments
-// Nobody gets to call this, it needs to be invoked in its own thread context
+// No functions get to call this, it must be invoked in its own thread context
 DWORD trim_thread(PVOID context) {
     // This parameter only exists to satisfy the API requirements for a thread starting function
+
+    // We wait on two handles here in order to react by terminating when the system exits
+    // Or react by waking up and trimming pages if necessary
     HANDLE handles[2];
 
     handles[0] = system_exit_event;
     handles[1] = wake_aging_event;
 
+    // This thread infinitely waits to be woken up by other threads until the end of the program
     while (TRUE)
     {
+        // Exits the infinite loop if told to, otherwise evaluates whether trimming is needed
         ULONG index = WaitForMultipleObjects(ARRAYSIZE(handles), handles,
                                              FALSE, INFINITE);
         if (index == 0)
         {
             break;
         }
-        // The conditions that cause this to start running could become
-        // False between when it is marked as ready and ran
-        // We always need to reevaluate this to see whether its actually needed
+
+        // TODO LM FIX we want to rewrite this to try and meet a target given to this thread based on previous demand
         while (free_page_list.num_pages + standby_page_list.num_pages <= physical_page_count / 4)
         {
-            // We are not just looking the other way here, we have a trust model
             age_pages();
         }
     }
@@ -215,77 +218,85 @@ DWORD trim_thread(PVOID context) {
 }
 
 
-// TODO read over this and write comments
-// This is called with a pte lock
+// This is how we get pages for new virtual addresses as well as old ones only exist on the paging file
 PPFN get_free_page(VOID) {
     PPFN free_page = NULL;
 
+    // This first check is done without a lock on the free page list
+    // This is because the list is empty for the majority of the program's duration
+    // We are able to check it faster without using the lock
+    // This prevents us from waiting to access an empty list
     if (free_page_list.num_pages != 0) {
         EnterCriticalSection(&free_page_list.lock);
-        // Check twice to verify after getting a lock here
+        // This check actually verifies that the list is empty
         if (free_page_list.num_pages != 0){
-            // LM Fix use containing record instead
+            // TODO LM FIX replace this cast with containing record
+            // TODO LM FIX once we allow users to free memory, we will need to zero this too
             free_page = (PPFN) RemoveHeadList(&free_page_list.entry);
             free_page_list.num_pages--;
         }
         LeaveCriticalSection(&free_page_list.lock);
     }
-    if ((free_page == NULL) && (standby_page_list.num_pages != 0)){
-        EnterCriticalSection(&standby_page_list.lock);
-        if (standby_page_list.num_pages != 0) {
-            free_page = (PPFN) RemoveHeadList(&standby_page_list.entry);
-            standby_page_list.num_pages--;
 
-            PPTE pte = free_page->pte;
+    // We do not check before getting a lock here like we do for the free list
+    // We want to be 100% sure of our check here because we expect this case to happen almost every time
+    // Also because we do not want to use our last resort option unless absolutely necessary
 
-            ULONG_PTR frame_number = frame_number_from_pfn(free_page);
-            if (MapUserPhysicalPages(repurpose_zero_va, 1, &frame_number) == FALSE) {
-                printf("page_fault_handler : could not map VA %p to page %Iu\n", repurpose_zero_va,
-                       frame_number);
-                fatal_error();
-            }
+    // This is where we take pages from the standby list and reallocate their physical pages for our new va to use
+    EnterCriticalSection(&standby_page_list.lock);
+    if ((free_page == NULL) && (standby_page_list.num_pages != 0)) {
+        // TODO LM FIX same thing as earlier, replace with CONTAINING_RECORD
+        // TODO LM FIX PUT REMOVE_HEAD_LIST PFN into a separate function
+        free_page = (PPFN) RemoveHeadList(&standby_page_list.entry);
+        standby_page_list.num_pages--;
 
-            memset(repurpose_zero_va, 0, PAGE_SIZE);
+        PPTE pte = free_page->pte;
 
-            if (MapUserPhysicalPages(repurpose_zero_va, 1, NULL) == FALSE) {
-                printf("page_fault_handler : could not unmap VA %p to page %Iu\n", repurpose_zero_va,
-                       frame_number);
-                fatal_error();
-            }
-
-            // Make this zero so a subsequent fault on this VA will know to get this from disc
-            // This needs to be protected by the pte read lock, right now it is being done from the handler
-            pte->software_format.frame_number = PAGE_ON_DISC;
+        // This is where we clear the previous contents off of the repurposed page
+        // This is important as it can corrupt the new user's data if not entirely overwritten,
+        // It also would allow a program to see another program's memory (HUGE SECURITY VIOLATION)
+        ULONG_PTR frame_number = frame_number_from_pfn(free_page);
+        if (MapUserPhysicalPages(repurpose_zero_va, 1, &frame_number) == FALSE) {
+            printf("page_fault_handler : could not map VA %p to page %Iu\n", repurpose_zero_va,
+                   frame_number);
+            fatal_error();
         }
-        LeaveCriticalSection(&standby_page_list.lock);
-    }
-    if (free_page == NULL){
-        // Ideally this is a last resort option and not something of high-frequency
-        // LM Fix, this would be better suited to be its own thread running find_trim_candidates
-        // Instead we want to wait for an event for this thread after returning a failure status
-        // We would want to release our pte read lock as if we failed
 
-        // printf("get_free_page: could not find trim candidates");
+        memset(repurpose_zero_va, 0, PAGE_SIZE);
+
+        if (MapUserPhysicalPages(repurpose_zero_va, 1, NULL) == FALSE) {
+            printf("page_fault_handler : could not unmap VA %p to page %Iu\n", repurpose_zero_va,
+                   frame_number);
+            fatal_error();
+        }
+
+        // This signifies to the handler that a pte's page is on disc
+        // This is subject to change after we expand the disc_index size
+        pte->software_format.frame_number = PAGE_ON_DISC;
+    }
+    LeaveCriticalSection(&standby_page_list.lock);
+
+    // This is a last resort option when there are no available pages
+    // We wake the aging thread and send this information to the fault handler
+    // Which then waits on a page to become available
+    if (free_page == NULL){
+
         SetEvent(wake_aging_event);
         return NULL;
     }
-        // Be conscious of whether we need a lock here
-        //free_page->flags.state = ACTIVE;
+        // Once we have depleted a page from the free/standby list, it is a good idea to consider aging
         SetEvent(wake_aging_event);
         return free_page;
 }
 
-// TODO read over this and write comments
+// This reads a page from the paging file and writes it back to memory
 PPFN read_page_on_disc(PPTE pte, PPFN free_page)
 {
-    // LM Fix we will want to fix this to not hold the pte read lock
-    if (free_page == NULL)
-    {
-        printf("read_page_on_disc : could not get a free page");
-        return NULL;
-    }
-
+    // We don't need a pfn lock here because this page is not on a list
+    // And therefore is not visible to any other threads
     ULONG_PTR frame_number = frame_number_from_pfn(free_page);
+
+    // We map these pages into our own va space to write contents into them, and then put them back in user va space
     if (MapUserPhysicalPages(modified_read_va, 1, &frame_number) == FALSE) {
 
         printf ("full_virtual_memory_test : could not map VA %p to page %llX\n", modified_read_va,
@@ -293,7 +304,7 @@ PPFN read_page_on_disc(PPTE pte, PPFN free_page)
         return NULL;
     }
 
-    // This would be a disc driver that does this read in a real operating system
+    // This would be a disc driver that does this read and write in a real operating system
     PVOID source = (PVOID)  ((ULONG_PTR) disc_space + pte->software_format.disc_index * PAGE_SIZE);
     memcpy(modified_read_va, source, PAGE_SIZE);
 
@@ -304,7 +315,7 @@ PPFN read_page_on_disc(PPTE pte, PPFN free_page)
         return NULL;
     }
 
-    // Set the char at disc_index in disc in use to be 0 to avoid leaking disc space and cause a clog up of the machine
+    // Set the bit at disc_index in disc in use to be 0 to reuse the disc spot
     free_disc_space(pte->software_format.disc_index);
     return free_page;
 }
@@ -409,6 +420,7 @@ BOOLEAN write_page_to_disc(VOID)
 {
     EnterCriticalSection(&modified_page_list.lock);
 
+    // TODO LM FIX replace this cast with containing record
     PPFN pfn = (PPFN) RemoveHeadList(&modified_page_list.entry);
     modified_page_list.num_pages--;
 

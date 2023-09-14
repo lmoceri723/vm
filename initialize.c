@@ -174,14 +174,6 @@ VOID initialize_threads(VOID)
         printf("initialize_threads : could not initialize thread handle for modified_write_thread");
         fatal_error();
     }
-
-    //system_handles[2] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE) populate_free_list_thread,
-//                                     (LPVOID) (ULONG_PTR) 2, 0, &system_thread_ids[2]);
-//    if (system_handles[2] == NULL)
-//    {
-//        printf("initialize_threads : could not initialize thread handle for populate_free_list_thread");
-//        fatal_error();
-//    }
 }
 
 BOOLEAN create_page_file(ULONG_PTR bytes)
@@ -243,6 +235,8 @@ ULONG_PTR dynamic_malloc(PVOID variable, ULONG_PTR bytes)
 
 VOID initialize_page_lists(VOID)
 {
+    // TODO THIS IS WHERE YOU LEFT OFF WITH MR BLICK
+    // MAKE SURE TO TELL HIM ABOUT DEADLOCKS
     InitializeListHead(&free_page_list.entry);
     free_page_list.num_pages = 0;
 

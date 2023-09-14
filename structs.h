@@ -56,6 +56,7 @@ typedef struct {
     LIST_ENTRY entry;
     PPTE pte;
     PFN_FLAGS flags;
+    ULONG64 disc_index;
 } PFN, *PPFN;
 
 typedef struct {
