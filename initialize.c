@@ -12,16 +12,20 @@ int compare(const void * a, const void * b);
 
 PULONG_PTR physical_page_numbers;
 
+// These are required to be initialized by the thread api, but they are not used currently
+__attribute__((unused))
 PHANDLE thread_handles;
-HANDLE system_handles[NUMBER_OF_SYSTEM_THREADS];
+__attribute__((unused))
 PULONG thread_ids;
+
+HANDLE system_handles[NUMBER_OF_SYSTEM_THREADS];
 ULONG system_thread_ids[NUMBER_OF_SYSTEM_THREADS];
 HANDLE physical_page_handle;
 
 HANDLE wake_aging_event;
 HANDLE modified_writing_event;
-HANDLE populate_free_list_event;
 HANDLE pages_available_event;
+HANDLE disc_spot_available_event;
 HANDLE system_exit_event;
 
 CRITICAL_SECTION pte_lock;
@@ -127,17 +131,17 @@ VOID initialize_events(VOID)
         fatal_error();
     }
 
-    populate_free_list_event = CreateEvent(NULL, FALSE, FALSE, NULL);
-    if (populate_free_list_event == NULL)
-    {
-        printf("initialize_events : could not initialize populate_free_list_event");
-        fatal_error();
-    }
-
     pages_available_event = CreateEvent(NULL, FALSE, FALSE, NULL);
     if (pages_available_event == NULL)
     {
         printf("initialize_events : could not initialize pages_available_event");
+        fatal_error();
+    }
+
+    disc_spot_available_event = CreateEvent(NULL, FALSE, FALSE, NULL);
+    if (disc_spot_available_event == NULL)
+    {
+        printf("initialize_events : could not initialize disc_spot_available_event");
         fatal_error();
     }
 
@@ -149,6 +153,8 @@ VOID initialize_events(VOID)
     }
 }
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wcast-calling-convention"
 VOID initialize_threads(VOID)
 {
     GetSystemInfo(&info);
@@ -157,8 +163,6 @@ VOID initialize_threads(VOID)
     thread_handles = malloc(sizeof(HANDLE) * num_processors);
     thread_ids = malloc(sizeof(ULONG) * num_processors);
 
-    // 0 will need to be changed in the future
-    // Add find trim candidates to system.h
     system_handles[0] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE) trim_thread,
                  (LPVOID) (ULONG_PTR) 0, 0, &system_thread_ids[0]);
     if (system_handles[0] == NULL)
@@ -175,6 +179,7 @@ VOID initialize_threads(VOID)
         fatal_error();
     }
 }
+#pragma clang diagnostic pop
 
 BOOLEAN create_page_file(ULONG_PTR bytes)
 {
@@ -298,7 +303,7 @@ BOOLEAN initialize_va_space(VOID)
     //
     // We deliberately make this much larger than physical memory
     // to illustrate how we can manage the illusion.
-    // We want more virtual than physical memory to illustrate this illusion
+    // We want more virtual than physical memory to illustrate this illusion.
     // We also do not give too much virtual memory as we still want to be able to illustrate the illusion
 
     virtual_address_size = (physical_page_count + disc_page_count - 1) * PAGE_SIZE;
@@ -334,7 +339,7 @@ BOOLEAN initialize_pte_metadata(VOID)
 
 BOOLEAN initialize_pfn_metadata(VOID)
 {
-    // TODO Think about seprating into two arrays to save va space
+    // TODO Think about separating into two arrays to save va space
     ULONG_PTR range = physical_page_numbers[physical_page_count - 1];
 
     pfn_metadata = VirtualAlloc(NULL,range * sizeof(PFN),
@@ -348,7 +353,7 @@ BOOLEAN initialize_pfn_metadata(VOID)
     PPFN pfn;
     ULONG_PTR frame_number;
 
-    for (ULONG_PTR i = 0; i < physical_page_count; i++)
+    for (ULONG64 i = 0; i < physical_page_count; i++)
     {
         frame_number = physical_page_numbers[i];
         // PAGE_ON_DISC is used in a pte to signify that its page is on disc
@@ -362,7 +367,7 @@ BOOLEAN initialize_pfn_metadata(VOID)
                      MEM_COMMIT,PAGE_READWRITE);
 
         if (result == NULL) {
-            printf("initialize_pfn_metadata : could not commit memory for pfn %Iu in pfn metadata\n", i);
+            printf("initialize_pfn_metadata : could not commit memory for pfn %llu in pfn metadata\n", i);
             return FALSE;
         }
 
@@ -401,7 +406,7 @@ BOOLEAN initialize_pages()
     }
 
     if (physical_page_count != NUMBER_OF_PHYSICAL_PAGES) {
-        printf("initialize_pages : allocated only %Iu pages out of %u pages requested\n",
+        printf("initialize_pages : allocated only %lu pages out of %u pages requested\n",
                physical_page_count,
                NUMBER_OF_PHYSICAL_PAGES);
     }
@@ -417,7 +422,7 @@ int compare (const void *a, const void *b) {
 
 BOOLEAN initialize_system (VOID) {
 
-    // First acquire privilege as the operating system reserves the sole right to allocate pages.
+    // First, acquire privilege as the operating system reserves the sole right to allocate pages.
     if (GetPrivilege() == FALSE) {
         printf("initialize_system : could not get privilege\n");
         return FALSE;
@@ -436,7 +441,6 @@ BOOLEAN initialize_system (VOID) {
 
     initialize_page_lists();
 
-    // Insert array of pages into free list
     if (initialize_pfn_metadata() == FALSE)
     {
         printf("initialize_system : could not initialize pfn metadata\n");
@@ -473,12 +477,15 @@ BOOLEAN initialize_system (VOID) {
     return TRUE;
 }
 
+// Terminates the program and gives all resources back to the operating system
 VOID deinitialize_system (VOID)
 {
-    // Now that we're done with our memory we can be a good citizen and free it.
+    // We need to close all system threads and wait for them to exit before proceeding
+    // This happens so that no thread tries to access a data structure that we have freed
     SetEvent(system_exit_event);
     WaitForMultipleObjects(NUMBER_OF_SYSTEM_THREADS, system_handles, TRUE, INFINITE);
 
+    // Now that we're done with our memory, we are able to free it
     free(pte_base);
     VirtualFree(modified_read_va, PAGE_SIZE, MEM_RELEASE);
     VirtualFree(modified_write_va, PAGE_SIZE, MEM_RELEASE);
@@ -487,6 +494,8 @@ VOID deinitialize_system (VOID)
     free(disc_space);
     VirtualFree(pfn_metadata, physical_page_numbers[physical_page_count - 1] * sizeof(PFN),
                 MEM_RELEASE);
+
+    // We can also do the same for all of our pages
     FreeUserPhysicalPages(physical_page_handle,&physical_page_count,
                           physical_page_numbers);
 

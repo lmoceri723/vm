@@ -41,8 +41,8 @@ extern PPFN pfn_metadata;
 
 extern HANDLE wake_aging_event;
 extern HANDLE modified_writing_event;
-extern HANDLE populate_free_list_event;
 extern HANDLE pages_available_event;
+extern HANDLE disc_spot_available_event;
 extern HANDLE system_exit_event;
 
 extern CRITICAL_SECTION pte_lock;

@@ -5,14 +5,19 @@
 
 #pragma comment(lib, "advapi32.lib")
 
+// This corresponds to how many times a random va will be written to in our test
 #define NUM_ADDRESSES MB(1) / 10
 
-ULONG_PTR fake_faults;
-ULONG_PTR num_faults;
-ULONG_PTR num_first_accesses;
-ULONG_PTR num_reaccesses;
+
+ULONG64 fake_faults;
+ULONG64 num_faults;
+
+ULONG64 num_first_accesses;
+ULONG64 num_reaccesses;
 
 
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "UnreachableCode"
 BOOLEAN full_virtual_memory_test (VOID) {
 
     PULONG_PTR arbitrary_va;
@@ -20,7 +25,6 @@ BOOLEAN full_virtual_memory_test (VOID) {
     BOOL page_faulted;
     PULONG_PTR p;
     ULONG_PTR num_bytes;
-    ULONG_PTR num_addresses;
     ULONG_PTR local;
 
     ULONG_PTR virtual_address_size_in_pages;
@@ -34,11 +38,8 @@ BOOLEAN full_virtual_memory_test (VOID) {
     virtual_address_size_in_pages = num_bytes / PAGE_SIZE;
 
     start_time = GetTickCount();
-    num_addresses = NUM_ADDRESSES;
-    for (unsigned i = 0; i < num_addresses; i++)
+    for (ULONG64 i = 0; i < NUM_ADDRESSES; i++)
     {
-        // Randomly access different portions of the virtual address
-        // space we obtained above.
         //
         // If we have never accessed the surrounding page size (4K)
         // portion, the operating system will receive a page fault
@@ -46,7 +47,7 @@ BOOLEAN full_virtual_memory_test (VOID) {
         // install a PTE to map it - thus connecting the end-to-end
         // virtual address translation.  Then the operating system
         // will tell the CPU to repeat the instruction that accessed
-        // the virtual address and this time, the CPU will see the
+        // the virtual address, and this time, the CPU will see the
         // valid PTE and proceed to obtain the physical contents
         // (without faulting to the operating system again).
 
@@ -85,15 +86,16 @@ BOOLEAN full_virtual_memory_test (VOID) {
             }
 
             page_fault_handler(arbitrary_va);
-        } while (page_faulted == TRUE);
+        } while (TRUE == page_faulted);
     }
 
     end_time = GetTickCount();
     time_elapsed = end_time - start_time;
-    printf("full_virtual_memory_test : finished accessing %Iu random virtual addresses in %u ms (%f s)\n",
-           num_addresses, time_elapsed, time_elapsed / 1000.0);
-    printf("full_virtual_memory_test : took %Iu faults and %Iu fake faults\n", num_faults, fake_faults);
+    printf("full_virtual_memory_test : finished accessing %d random virtual addresses in %lu ms (%f s)\n",
+           NUM_ADDRESSES, time_elapsed, time_elapsed / 1000.0);
+    printf("full_virtual_memory_test : took %llu faults and %llu fake faults\n", num_faults, fake_faults);
 
 
     return TRUE;
 }
+#pragma clang diagnostic pop
