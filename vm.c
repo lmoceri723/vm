@@ -17,25 +17,10 @@
 // TODO LM FIX ensure consistent conventions with style, including opening and closing {} curly brackets
 // TODO LM FIX re-evaluate all ULONG_PTR variables on whether they should be ULONG64
 
-// TODO LM FIX removing from the standby list no longer automatically does these operations
-/* free_disc_space(pfn->pte->disc_format.disc_index);
-        pfn->pte->software_format.disc_index = 0; */
-
-// TODO LM ASK
-// Why use eight bits to store the exact count of active ptes in a region when we can use only
-// A one-bit boolean to indicate whether we have any active pages in the region
-
-// Pros = we can check 64 regions at once
-// I think the pros outweigh the cons
-// As we only have to make three additional bus trips from memory to cpu in the worst case
-
-// Cons = we do not have the ability to leave once we have aged exactly how many pages need to be.
-// In this case, we can only check eight regions at once,
-// However, we only will save on a maximum of three bus trips if exit the region's active bit-map prematurely
-
 PPTE pte_from_va(PVOID virtual_address);
 PVOID va_from_pte(PPTE pte);
 PPFN pfn_from_frame_number(ULONG64 frame_number);
+
 VOID trim(PPFN page);
 PPFN get_free_page(VOID);
 PPFN read_page_on_disc(PPTE pte, PPFN free_page);
@@ -43,9 +28,10 @@ PPFN read_page_on_disc(PPTE pte, PPFN free_page);
 VOID remove_from_list(PPFN pfn, BOOLEAN holds_locks);
 VOID add_to_list(PPFN pfn, PPFN_LIST listhead, BOOLEAN holds_locks);
 PPFN pop_from_list(PPFN_LIST listhead, BOOLEAN holds_locks);
+VOID check_list_integrity(PPFN_LIST listhead, PPFN match_pfn);
 
 VOID free_disc_space(ULONG64 disc_index);
-VOID check_list_integrity(PPFN_LIST listhead, PPFN match_pfn);
+
 VOID unlock_pte(PPTE pte);
 VOID lock_pte(PPTE pte);
 VOID unlock_pfn(PPFN pfn);
@@ -271,10 +257,10 @@ PPFN get_free_page(VOID) {
         LeaveCriticalSection(&standby_page_list.lock);
         took_standby_page = TRUE;
 
-        // TODO LM Ask Landy what the best way to handle this is
         // This locking situation here is suspect
-        // Additionally, we might be trying to get the same lock twice in some places
         PPTE pte = free_page->pte;
+        // If this pte is in the same region as our first lock
+        // The api will handle this by allowing the thread owner to claim and release the lock recursively
         lock_pte(pte);
 
         ULONG64 disc_index = free_page->disc_index;
@@ -298,6 +284,8 @@ PPFN get_free_page(VOID) {
 
         pte->disc_format.on_disc = 1;
         pte->disc_format.disc_index = disc_index;
+
+        unlock_pte(pte);
     }
     // Exit the lock here instead of doing it earlier inside the function if there were no standby pages to take
     if (took_standby_page == FALSE)
@@ -568,7 +556,6 @@ DWORD modified_write_thread(PVOID context)
                 break;
             }
         }
-
     }
 
     // This function doesn't actually return anything as it runs infinitely throughout the duration of the program
@@ -690,6 +677,7 @@ VOID lock_pte(PPTE pte)
     index /= PTE_REGION_SIZE;
 
     EnterCriticalSection(&pte_region_locks[index]);
+    return pte_region_locks[index];
 }
 
 VOID unlock_pte(PPTE pte)
@@ -879,7 +867,6 @@ VOID page_fault_handler(PVOID arbitrary_va)
     pte->memory_format.on_disc = 0;
     pte->memory_format.age = 0;
 
-    // TODO MAKE APPROPRIATE CHANGES TO PTE AND PFN DISC INFORMATION
     pfn->pte = pte;
     pfn->flags.state = ACTIVE;
 
