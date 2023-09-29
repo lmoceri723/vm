@@ -16,6 +16,7 @@
 // TODO LM FIX find a way to suppress unused parameter warnings
 // TODO LM FIX ensure consistent conventions with style, including opening and closing {} curly brackets
 // TODO LM FIX re-evaluate all ULONG_PTR variables on whether they should be ULONG64
+// TODO LM FIX replace return false with fatal_error() when returning false corresponds to a fatal error
 
 PPTE pte_from_va(PVOID virtual_address);
 PVOID va_from_pte(PPTE pte);
@@ -251,13 +252,14 @@ PPFN get_free_page(VOID) {
     BOOLEAN took_standby_page = FALSE;
     EnterCriticalSection(&standby_page_list.lock);
     if ((free_page == NULL) && (standby_page_list.num_pages != 0)) {
-        // TODO LM FIX PUT REMOVE_HEAD_LIST PFN into a separate function
+        // TODO LM FIX call free disc space here
         free_page = pop_from_list(&standby_page_list, TRUE);
 
         LeaveCriticalSection(&standby_page_list.lock);
         took_standby_page = TRUE;
 
-        // This locking situation here is suspect
+        // TODO LM ASK THIS IS TOTALLY A BUG
+        //  This locking situation here is suspect
         PPTE pte = free_page->pte;
         // If this pte is in the same region as our first lock
         // The api will handle this by allowing the thread owner to claim and release the lock recursively
@@ -293,18 +295,17 @@ PPFN get_free_page(VOID) {
         LeaveCriticalSection(&standby_page_list.lock);
     }
 
-
     // This is a last resort option when there are no available pages
     // We wake the aging thread and send this information to the fault handler
     // Which then waits on a page to become available
+    // Aging is done here no matter what
+    SetEvent(wake_aging_event);
     if (free_page == NULL){
 
-        SetEvent(wake_aging_event);
         return NULL;
     }
-        // Once we have depleted a page from the free/standby list, it is a good idea to consider aging
-        SetEvent(wake_aging_event);
-        return free_page;
+    // Once we have depleted a page from the free/standby list, it is a good idea to consider aging
+    return free_page;
 }
 
 // This reads a page from the paging file and writes it back to memory
@@ -677,7 +678,6 @@ VOID lock_pte(PPTE pte)
     index /= PTE_REGION_SIZE;
 
     EnterCriticalSection(&pte_region_locks[index]);
-    return pte_region_locks[index];
 }
 
 VOID unlock_pte(PPTE pte)
@@ -790,6 +790,7 @@ VOID page_fault_handler(PVOID arbitrary_va)
 
     // This is where the age is updated on an active page that has not actually faulted
     // We refer to this as a fake fault
+    // TODO LM ASK Landy is this more efficient than writing it to zero every time
     if (pte_contents.memory_format.valid == 1)
     {
         fake_faults++;
@@ -828,6 +829,7 @@ VOID page_fault_handler(PVOID arbitrary_va)
             return;
         }
 
+        // TODO LM FIX move this above
         // If the frame number of a pte is PAGE_ON_DISC, it means that this page only exists in the paging file
         // It has been trimmed, written to disc, and its physical page has been reused
         // We need to read this page from the paging file and remap it to the va
@@ -855,6 +857,7 @@ VOID page_fault_handler(PVOID arbitrary_va)
         // This will unlink our page from the standby or modified list
         // It uses the pfn's information to determine which list it is on
         pfn = pfn_from_frame_number(pte_contents.memory_format.frame_number);
+        // TODO LM FIX where are we calling free disc space
         remove_from_list(pfn, FALSE);
     }
 
@@ -879,8 +882,8 @@ VOID page_fault_handler(PVOID arbitrary_va)
         printf("page_fault_handler : could not map VA %p to page %llX\n", arbitrary_va,
                frame_number_from_pfn(pfn));
         fatal_error();
-
     }
+
     unlock_pfn(pfn);
     unlock_pte(pte);
 }

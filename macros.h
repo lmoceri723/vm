@@ -1,6 +1,4 @@
-//
 // Created by ltm14 on 7/12/2023.
-//
 
 #ifndef VM_MACROS_H
 #define VM_MACROS_H

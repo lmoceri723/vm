@@ -16,8 +16,6 @@ ULONG64 num_first_accesses;
 ULONG64 num_reaccesses;
 
 
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "UnreachableCode"
 BOOLEAN full_virtual_memory_test (VOID) {
 
     PULONG_PTR arbitrary_va;
@@ -85,6 +83,7 @@ BOOLEAN full_virtual_memory_test (VOID) {
                 page_faulted = TRUE;
             }
 
+            // TODO LM FIX separate fake faults into another function
             page_fault_handler(arbitrary_va);
         } while (TRUE == page_faulted);
     }
@@ -98,4 +97,3 @@ BOOLEAN full_virtual_memory_test (VOID) {
 
     return TRUE;
 }
-#pragma clang diagnostic pop

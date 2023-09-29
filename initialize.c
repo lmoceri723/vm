@@ -105,10 +105,10 @@ VOID initialize_locks(VOID)
     InitializeCriticalSection(&standby_page_list.lock);
     InitializeCriticalSection(&modified_page_list.lock);
 
-    for (unsigned i = 0; i < NUMBER_OF_AGES; i++)
-    {
-        InitializeCriticalSection(&active_page_list[i].lock);
-    }
+//    for (unsigned i = 0; i < NUMBER_OF_AGES; i++)
+//    {
+//        InitializeCriticalSection(&active_page_list[i].lock);
+//    }
     for (unsigned i = 0; i < NUMBER_OF_PTE_REGIONS; i++)
     {
         InitializeCriticalSection(&pte_region_locks[i]);
@@ -153,8 +153,6 @@ VOID initialize_events(VOID)
     }
 }
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wcast-calling-convention"
 VOID initialize_threads(VOID)
 {
     GetSystemInfo(&info);
@@ -179,17 +177,9 @@ VOID initialize_threads(VOID)
         fatal_error();
     }
 }
-#pragma clang diagnostic pop
 
 BOOLEAN create_page_file(ULONG_PTR bytes)
 {
-    // When we search for free bits, we use MAXULONG32 to say there is no free bit
-    // So our size cannot be greater than it
-    if (bytes >= MAXULONG32 * PAGE_SIZE)
-    {
-        printf("create_page_file : amount of bytes in page file exceed its maximum possible size");
-        return FALSE;
-    }
     disc_space = malloc(bytes);
     if (disc_space == NULL)
     {
@@ -198,7 +188,8 @@ BOOLEAN create_page_file(ULONG_PTR bytes)
     }
 
     // LM Fix merge mallocs to be one single malloc
-    ULONG_PTR size = bytes / PAGE_SIZE / 8;
+    // TODO LM Fix instead, make this an actual disc write
+    ULONG_PTR size = bytes / PAGE_SIZE / sizeof(char);
     disc_in_use = malloc(size);
     if (disc_in_use == NULL)
     {
@@ -214,34 +205,9 @@ BOOLEAN create_page_file(ULONG_PTR bytes)
     return TRUE;
 }
 
-#if 0
-ULONG_PTR dynamic_malloc(PVOID variable, ULONG_PTR bytes)
-{
-    // Make this a function and apply this to all cases of mallocing in this file
-    // Make sure to go back as well and change any globals that will be affected by this
-    // as well as when physical_page_count != NUMBER_OF_PHYSICAL_PAGES
-    ULONG_PTR actual_bytes = bytes;
-    variable = malloc(actual_bytes);
-
-    while (variable == NULL)
-    {
-        actual_bytes = actual_bytes * 0.9;
-        variable = malloc(actual_bytes);
-    }
-    if (actual_bytes != bytes)
-    {
-        printf("dynamic_malloc : could only allocate %lu out of %lu bytes for the variable", actual_bytes, bytes);
-    }
-
-    return actual_bytes;
-}
-#endif
-
 
 VOID initialize_page_lists(VOID)
 {
-    // TODO THIS IS WHERE YOU LEFT OFF WITH MR BLICK
-    // MAKE SURE TO TELL HIM ABOUT DEADLOCKS
     InitializeListHead(&free_page_list.entry);
     free_page_list.num_pages = 0;
 
@@ -251,11 +217,6 @@ VOID initialize_page_lists(VOID)
     InitializeListHead(&standby_page_list.entry);
     standby_page_list.num_pages = 0;
 
-    for (unsigned i = 0; i < NUMBER_OF_AGES; i++)
-    {
-        InitializeListHead(&active_page_list[i].entry);
-        active_page_list[i].num_pages = 0;
-    }
 }
 
 BOOLEAN initialize_readwrite_va(VOID)
@@ -306,9 +267,11 @@ BOOLEAN initialize_va_space(VOID)
     // We want more virtual than physical memory to illustrate this illusion.
     // We also do not give too much virtual memory as we still want to be able to illustrate the illusion
 
+    // TODO why -1 here?
     virtual_address_size = (physical_page_count + disc_page_count - 1) * PAGE_SIZE;
 
-    // Round down to a PAGE_SIZE boundary.
+    // Round down to a PAGE_SIZE boundary
+    // Uses bit operations instead of modulus to do this quicker
     virtual_address_size &= ~(PAGE_SIZE - 1);
 
     va_base = VirtualAlloc(NULL,
@@ -377,11 +340,13 @@ BOOLEAN initialize_pfn_metadata(VOID)
         pfn = pfn_from_frame_number(frame_number);
         pfn->flags.state = FREE;
         InitializeCriticalSection(&pfn->flags.lock);
+
+        // TODO replace this with the function i wrote to do this
         InsertTailList(&free_page_list.entry, &pfn->entry);
         free_page_list.num_pages++;
     }
 
-    // LM ASK do we need to keep this to free the pages at the end
+    // TODO we might want to fix this here
     //free(physical_page_numbers);
     return TRUE;
 }
@@ -406,7 +371,7 @@ BOOLEAN initialize_pages()
     }
 
     if (physical_page_count != NUMBER_OF_PHYSICAL_PAGES) {
-        printf("initialize_pages : allocated only %lu pages out of %u pages requested\n",
+        printf("initialize_pages : allocated only %llu pages out of %u pages requested\n",
                physical_page_count,
                NUMBER_OF_PHYSICAL_PAGES);
     }
