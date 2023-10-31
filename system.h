@@ -3,16 +3,12 @@
 
 #include "structs.h"
 
-// This value is carefully picked as it fits into our field for frame number of our invalid pte format
-#define PAGE_ON_DISC (ULONG_PTR) 0xFFFFFFFFFF
 
 #define FREE 0
 #define CLEAN 1
-//#define ZEROED 2
+#define ZEROED 2
 #define MODIFIED 3
 #define ACTIVE 4
-
-#define NUMBER_OF_AGES 8
 
 #define NUMBER_OF_PHYSICAL_PAGES                 (MB (1) / PAGE_SIZE)
 #define NUMBER_OF_DISC_PAGES                     (MB (16) / PAGE_SIZE)
@@ -28,8 +24,8 @@ extern ULONG_PTR virtual_address_size;
 extern PFN_LIST free_page_list;
 extern PFN_LIST modified_page_list;
 extern PFN_LIST standby_page_list;
-extern PFN_LIST active_page_list[NUMBER_OF_AGES];
 extern PPTE pte_base;
+extern PPTE pte_end;
 extern PVOID va_base;
 extern PVOID modified_write_va;
 extern PVOID modified_read_va;
@@ -38,6 +34,7 @@ extern PVOID disc_space;
 extern PUCHAR disc_in_use;
 extern PUCHAR disc_end;
 extern PPFN pfn_metadata;
+extern PPFN pfn_metadata_end;
 
 extern HANDLE wake_aging_event;
 extern HANDLE modified_writing_event;

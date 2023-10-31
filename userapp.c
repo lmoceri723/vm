@@ -31,14 +31,16 @@ BOOLEAN full_virtual_memory_test (VOID) {
     ULONG end_time;
     ULONG time_elapsed;
 
+    // This replaces a malloc call in our system
+    // Right now, we are just giving a set amount to the caller
     p = (PULONG_PTR) allocate_memory(&num_bytes);
 
     virtual_address_size_in_pages = num_bytes / PAGE_SIZE;
 
+    // This is where the test is actually ran
     start_time = GetTickCount();
     for (ULONG64 i = 0; i < NUM_ADDRESSES; i++)
     {
-        //
         // If we have never accessed the surrounding page size (4K)
         // portion, the operating system will receive a page fault
         // from the CPU and proceed to obtain a physical page and
@@ -49,19 +51,20 @@ BOOLEAN full_virtual_memory_test (VOID) {
         // valid PTE and proceed to obtain the physical contents
         // (without faulting to the operating system again).
 
+        // This computes a random virtual address within our range
         random_number = rand();
-
         random_number %= virtual_address_size_in_pages;
+        arbitrary_va = p + (random_number * PAGE_SIZE) / sizeof(ULONG_PTR);
 
         // Write the virtual address into each page
         page_faulted = FALSE;
-
-        arbitrary_va = p + (random_number * PAGE_SIZE) / sizeof(ULONG_PTR);
-
+        // Try to access the virtual address, continue entering the handler until the page fault is resolved
         do {
             __try
             {
+                // We are trying to write the va as a number into the page contents associated with that va
                 local = *arbitrary_va;
+                // This breaks into the debugger if the local value is not the same as the va
                 if (local != 0)
                 {
                     if (local != (ULONG_PTR) arbitrary_va)

@@ -13,9 +13,7 @@ int compare(const void * a, const void * b);
 PULONG_PTR physical_page_numbers;
 
 // These are required to be initialized by the thread api, but they are not used currently
-__attribute__((unused))
 PHANDLE thread_handles;
-__attribute__((unused))
 PULONG thread_ids;
 
 HANDLE system_handles[NUMBER_OF_SYSTEM_THREADS];
@@ -105,10 +103,6 @@ VOID initialize_locks(VOID)
     InitializeCriticalSection(&standby_page_list.lock);
     InitializeCriticalSection(&modified_page_list.lock);
 
-//    for (unsigned i = 0; i < NUMBER_OF_AGES; i++)
-//    {
-//        InitializeCriticalSection(&active_page_list[i].lock);
-//    }
     for (unsigned i = 0; i < NUMBER_OF_PTE_REGIONS; i++)
     {
         InitializeCriticalSection(&pte_region_locks[i]);
@@ -187,7 +181,7 @@ BOOLEAN create_page_file(ULONG_PTR bytes)
         return FALSE;
     }
 
-    // LM Fix merge mallocs to be one single malloc
+    // LM Fix merge malloc calls to be one single malloc
     // TODO LM Fix instead, make this an actual disc write
     ULONG_PTR size = bytes / PAGE_SIZE / sizeof(char);
     disc_in_use = malloc(size);
@@ -267,7 +261,7 @@ BOOLEAN initialize_va_space(VOID)
     // We want more virtual than physical memory to illustrate this illusion.
     // We also do not give too much virtual memory as we still want to be able to illustrate the illusion
 
-    // TODO why -1 here?
+    // TODO LM ASK why -1 here?
     virtual_address_size = (physical_page_count + disc_page_count - 1) * PAGE_SIZE;
 
     // Round down to a PAGE_SIZE boundary
@@ -296,13 +290,13 @@ BOOLEAN initialize_pte_metadata(VOID)
         return FALSE;
     }
     memset(pte_base, 0, num_pte_bytes);
+    pte_end = pte_base + num_pte_bytes / sizeof(PTE);
 
     return TRUE;
 }
 
 BOOLEAN initialize_pfn_metadata(VOID)
 {
-    // TODO Think about separating into two arrays to save va space
     ULONG_PTR range = physical_page_numbers[physical_page_count - 1];
 
     pfn_metadata = VirtualAlloc(NULL,range * sizeof(PFN),
@@ -319,10 +313,8 @@ BOOLEAN initialize_pfn_metadata(VOID)
     for (ULONG64 i = 0; i < physical_page_count; i++)
     {
         frame_number = physical_page_numbers[i];
-        // PAGE_ON_DISC is used in a pte to signify that its page is on disc
-        // TODO May not be needed
         // Frame number of 0 is used to signify that a pte has not yet been connected to a page and is brand new
-        if (frame_number == PAGE_ON_DISC || frame_number == 0) {
+        if (frame_number == 0) {
             continue;
         }
 
@@ -341,12 +333,10 @@ BOOLEAN initialize_pfn_metadata(VOID)
         pfn->flags.state = FREE;
         InitializeCriticalSection(&pfn->flags.lock);
 
-        // TODO replace this with the function i wrote to do this
         InsertTailList(&free_page_list.entry, &pfn->entry);
         free_page_list.num_pages++;
     }
 
-    // TODO we might want to fix this here
     //free(physical_page_numbers);
     return TRUE;
 }
@@ -463,8 +453,4 @@ VOID deinitialize_system (VOID)
     // We can also do the same for all of our pages
     FreeUserPhysicalPages(physical_page_handle,&physical_page_count,
                           physical_page_numbers);
-
-
-
-
 }
