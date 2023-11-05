@@ -7,9 +7,15 @@
 #include "userapp.h"
 
 #pragma comment(lib, "advapi32.lib")
-
+//https://learn.microsoft.com/en-us/dotnet/api/system.threading.interlocked.increment?view=net-7.0
 #if 1
 #define DBG                TRUE
+#endif
+
+#if DBG
+#define assert(x)       if (!(x)) { printf ("Assertion failed: %s, file %s, line %d\n", #x, __FILE__, __LINE__); DebugBreak(); }
+#else
+#define assert(x)
 #endif
 
 VOID trim(PPFN page);
@@ -27,6 +33,11 @@ VOID unlock_pte(PPTE pte);
 VOID lock_pte(PPTE pte);
 VOID unlock_pfn(PPFN pfn);
 VOID lock_pfn(PPFN pfn);
+
+VOID write_pte(PPTE pte, PTE local);
+VOID write_pfn(PPFN pfn, PFN local);
+
+VOID breakpoint(VOID);
 
 ULONG_PTR virtual_address_size;
 ULONG_PTR physical_page_count;
@@ -125,14 +136,22 @@ void trim(PPFN page)
         fatal_error();
     }
 
-    page->flags.state = MODIFIED;
+
 
     // This is safe as I hold both locks already here
     PPTE pte = page->pte;
+    PTE old_pte_contents = *pte;
+    PTE new_pte_contents;
+    new_pte_contents.entire_format = 0;
 
-    pte->memory_format.age = 0;
-    pte->disc_format.valid = 0;
+    assert(old_pte_contents.memory_format.valid == 1);
 
+    assert(new_pte_contents.transition_format.always_zero == 0);
+    new_pte_contents.transition_format.frame_number = old_pte_contents.memory_format.frame_number;
+
+    write_pte(pte, new_pte_contents);
+
+    page->flags.state = MODIFIED;
     EnterCriticalSection(&modified_page_list.lock);
 
     add_to_list(page, &modified_page_list, TRUE);
@@ -229,6 +248,7 @@ PPFN get_free_page(VOID) {
             // Once we allow users to free memory, we will need to zero this too
             free_page = pop_from_list(&free_page_list, TRUE);
             lock_pfn(free_page);
+            assert(free_page->flags.state == FREE);
         }
         LeaveCriticalSection(&free_page_list.lock);
     }
@@ -260,12 +280,20 @@ PPFN get_free_page(VOID) {
             LeaveCriticalSection(&standby_page_list.lock);
             took_standby_page = TRUE;
         }
+        breakpoint();
 
-        // TODO ACCESS THIS WITHOUT A LOCK, RECALL THE CONVERSATION WITH LANDY ABOUT CHECKING IN THE HANDLER
+        // TODO make pte and pfn writing a function, pass in a local with the contents and the address and
+        //  store the changes in a buffer
         PPTE other_pte = free_page->pte;
-        other_pte->disc_format.on_disc = 1;
-
         ULONG64 other_disc_index = free_page->disc_index;
+        // We want to start writing entire PTEs instead of writing them bit by bit
+
+        // We hold this PTEs PFN lock which allows us to access this PTE here without a lock
+        PTE local = *other_pte;
+        local.disc_format.on_disc = 1;
+        local.disc_format.disc_index = other_disc_index;
+        write_pte(other_pte, local);
+
         // This is where we clear the previous contents off of the repurposed page
         // This is important as it can corrupt the new user's data if not entirely overwritten,
         // It also would allow a program to see another program's memory (HUGE SECURITY VIOLATION)
@@ -283,8 +311,6 @@ PPFN get_free_page(VOID) {
                    frame_number);
             fatal_error();
         }
-
-        other_pte->disc_format.disc_index = other_disc_index;
     }
 
     // This is a last resort option when there are no available pages
@@ -316,7 +342,7 @@ PPFN read_page_on_disc(PPTE pte, PPFN free_page)
     }
 
     // This would be a disc driver that does this read and write in a real operating system
-    PVOID source = (PVOID)  ((ULONG_PTR) disc_space + pte->disc_format.disc_index * PAGE_SIZE);
+    PVOID source = (PVOID) ((ULONG_PTR) disc_space + pte->disc_format.disc_index * PAGE_SIZE);
     memcpy(modified_read_va, source, PAGE_SIZE);
 
     if (MapUserPhysicalPages(modified_read_va, 1, NULL) == FALSE) {
@@ -417,6 +443,9 @@ VOID free_disc_space(ULONG64 disc_index)
     // Result: 11011(0)01
     // The zero surrounded by parenthesis is the bit we change; all others are preserved
 
+    // This asserts that the disc space is not already free
+    assert(spot_cluster & (1<<(index_in_char)));
+
     spot_cluster &= ~(1<<(index_in_char));
 
     // Write the char back out after the bit has been changed
@@ -433,8 +462,10 @@ BOOLEAN write_page_to_disc(VOID)
     PPFN pfn;
     ULONG_PTR frame_number;
 
+    // TODO LM FIX What if there are no pages
     pfn = pop_from_list(&modified_page_list, FALSE);
 
+    // TODO LM FIX we need to still hold the lock here instead of relinquishing and re-getting it
     lock_pfn(pfn);
 
     frame_number = frame_number_from_pfn(pfn);
@@ -478,7 +509,7 @@ BOOLEAN write_page_to_disc(VOID)
     PVOID actual_space;
     actual_space = (PVOID) ((ULONG_PTR) disc_space + (disc_index * PAGE_SIZE));
     // TODO LM FIX this will be problematic, we need to have a lock on this va
-    //  Or seprate it into regions each thread has a hold over
+    //  Or separate it into regions each thread has a hold over
     memcpy(actual_space, modified_write_va, PAGE_SIZE);
 
     // We can now unmap this from our va space as we have finished copying its contents to disc
@@ -575,11 +606,6 @@ PPFN pop_from_list(PPFN_LIST listhead, BOOLEAN holds_locks)
 
     listhead->num_pages--;
 
-    if (pfn->flags.state == CLEAN)
-    {
-        free_disc_space(pfn->disc_index);
-    }
-
     check_list_integrity(listhead, NULL);
 
     if (holds_locks == FALSE)
@@ -611,7 +637,6 @@ VOID remove_from_list(PPFN pfn, BOOLEAN holds_locks)
 
         // This is on the standby list
         listhead = &standby_page_list;
-        free_disc_space(pfn->disc_index);
 
     } else {
 
@@ -738,6 +763,49 @@ VOID check_list_integrity(PPFN_LIST listhead, PPFN match_pfn)
 #endif
 }
 
+VOID breakpoint(VOID)
+{
+
+}
+
+VOID log_pte_write(PTE initial, PTE new)
+{
+
+}
+
+VOID log_pfn_write(PFN initial, PFN new)
+{
+
+}
+
+PTE read_pte(PPTE pte)
+{
+    // TODO LM FIX change this comment
+    // Now this is written as a single 64 bit value instead of in parts
+    // This is needed because the cpu or another concurrent faulting thread
+    // Can still access this pte in transition format and see an intermediate state
+    PTE local;
+    local.entire_format = *(volatile ULONG64 *) &pte->entire_format;
+    return local;
+}
+
+// Write the value of a local pte to a pte in memory
+VOID write_pte(PPTE pte, PTE local)
+{
+    log_pte_write(*pte, local);
+
+    // Now this is written as a single 64 bit value instead of in parts
+    // This is needed because the cpu or another concurrent faulting thread
+    // Can still access this pte in transition format and see an intermediate state
+    *(volatile ULONG64 *) &pte->entire_format = local.entire_format;
+
+}
+
+VOID write_pfn(PPFN pfn, PFN local)
+{
+    log_pfn_write(*pfn, local);
+    *pfn = local;
+}
 
 // Functions to lock and unlock pte regions and individual PFNs
 VOID lock_pte(PPTE pte)
@@ -793,8 +861,12 @@ VOID page_fault_handler(PVOID arbitrary_va)
     // We refer to this as a fake fault
     if (pte_contents.memory_format.valid == 1)
     {
+        // TODO LM FIX ADD IF BACK
         fake_faults++;
-        pte->memory_format.age = 0;
+
+
+        pte_contents.memory_format.age = 0;
+        write_pte(pte, pte_contents);
 
         unlock_pte(pte);
         return;
@@ -805,10 +877,23 @@ VOID page_fault_handler(PVOID arbitrary_va)
 
     PPFN pfn;
 
-    // If the frame number is zero, it means that this is a brand new va that has never been accessed.
+    // If the frame number/disc index is zero, it means that this is a brand new va that has never been accessed.
+    // We also have to ensure that on_disc is zero, so we know that it's not a page on disc instead
     // Inversely, we know that a va has been accessed if the frame number is non-zero
     // We need to get a free/standby page and map it to this va
-    if (pte_contents.disc_format.on_disc == 1) {
+
+    if (pte_contents.disc_format.disc_index == 0 && pte_contents.disc_format.on_disc == 0)
+    {
+        pfn = get_free_page();
+
+        if (pfn == NULL) {
+            unlock_pte(pte);
+            WaitForSingleObject(pages_available_event, INFINITE);
+            return;
+        }
+    }
+    // Cannot be transition at this point if on_disc is 1
+    else if (pte_contents.disc_format.on_disc == 1) {
 
         pfn = get_free_page();
         if (pfn == NULL) {
@@ -825,7 +910,47 @@ VOID page_fault_handler(PVOID arbitrary_va)
         // All we need to do is remove it from these lists now
         // This is called a soft fault, as this can be done all in memory and doesn't require disc reads/writes
         // This is our ideal type of fault, as it takes the shortest amount of time
+    } else {
+
+        // This will unlink our page from the standby or modified list
+        // It uses the PFNs information to determine which list it is on
+
+        pfn = pfn_from_frame_number(pte_contents.transition_format.frame_number);
+
+        lock_pfn(pfn);
+
+        pte_contents = *pte;
+
+        assert(pte_contents.transition_format.always_zero == 0);
+        assert(pte_contents.transition_format.always_zero2 == 0);
+        assert(pte_contents.transition_format.frame_number == frame_number_from_pfn(pfn));
+
+        if (pte_contents.disc_format.on_disc == 1)
+        {
+            return;
+        }
+
+        // Reread the pte as it may have changed since we last read it
+
+        assert(pfn->flags.state == CLEAN || pfn->flags.state == MODIFIED);
+
+        if (pfn->flags.state == MODIFIED) {
+            EnterCriticalSection(&modified_page_list.lock);
+            remove_from_list(pfn, TRUE);
+            LeaveCriticalSection(&modified_page_list.lock);
+
+        } else /*(pfn->flags.state == CLEAN) */{
+
+            EnterCriticalSection(&standby_page_list.lock);
+            remove_from_list(pfn, TRUE);
+            // Freeing the space here and updating the pfn lower down
+            free_disc_space(pfn->disc_index);
+            LeaveCriticalSection(&standby_page_list.lock);
+        }
     }
+
+
+    /*
     else if (pte_contents.memory_format.frame_number == 0) {
 
         pfn = get_free_page();
@@ -839,57 +964,40 @@ VOID page_fault_handler(PVOID arbitrary_va)
             return;
         }
 
-        // TODO LM FIX move this above
+
+
         // If the frame number of a pte is PAGE_ON_DISC, it means that this page only exists in the paging file
         // It has been trimmed, written to disc, and its physical page has been reused
         // We need to read this page from the paging file and remap it to the va
         // This is called a hard fault, as we have to read from disc in order to handle it
         // We want to minimize this type of fault, as it takes exponentially longer than other types of faults
-    } else {
-
-        // This will unlink our page from the standby or modified list
-        // It uses the PFNs information to determine which list it is on
-        PPFN_LIST listhead;
-
-        pfn = pfn_from_frame_number(pte_contents.memory_format.frame_number);
-        lock_pfn(pfn);
-
-        if (pte->disc_format.on_disc == 1)
-        {
-            return;
-        }
-
-        if (pfn->flags.state == MODIFIED) {
-            EnterCriticalSection(&modified_page_list.lock);
-            remove_from_list(pfn, TRUE);
-            LeaveCriticalSection(&modified_page_list.lock);
-
-        } else /*(pfn->flags.state == CLEAN) */{
-
-            EnterCriticalSection(&standby_page_list.lock);
-            remove_from_list(pfn, TRUE);
-            free_disc_space(pfn->disc_index);
-            LeaveCriticalSection(&standby_page_list.lock);
-        }
-        remove_from_list(pfn, FALSE);
-    }
+    }*/
 
     // These functions return the pfn with a lock on it already
 
     // We now have the page we need, we just need to correctly map it now to the va
-    pte->memory_format.frame_number = frame_number_from_pfn(pfn);
-    pte->memory_format.valid = 1;
-    pte->memory_format.on_disc = 0;
-    pte->memory_format.age = 0;
 
-    pfn->pte = pte;
-    pfn->flags.state = ACTIVE;
-    pfn->disc_index = 0;
+    PTE new_pte;
+    PFN new_pfn;
+    ULONG64 frame_number;
+
+    new_pte = *pte;
+    new_pfn = *pfn;
+    frame_number = frame_number_from_pfn(pfn);
+
+    new_pte.memory_format.frame_number = frame_number_from_pfn(pfn);
+    new_pte.memory_format.valid = 1;
+    new_pte.memory_format.age = 0;
+    write_pte(pte, new_pte);
+
+    new_pfn.pte = pte;
+    new_pfn.flags.state = ACTIVE;
+    new_pfn.disc_index = 0;
+    write_pfn(pfn, new_pfn);
 
     // This is a Windows API call that confirms the changes we made with the OS
     // We have already mapped this va to this page on our side, but the OS also needs to do the same on its side
     // This is necessary as this is a user mode program
-    ULONG_PTR frame_number = frame_number_from_pfn(pfn);
     if (MapUserPhysicalPages(arbitrary_va, 1, &frame_number) == FALSE) {
 
         printf("page_fault_handler : could not map VA %p to page %llX\n", arbitrary_va,

@@ -428,7 +428,7 @@ BOOLEAN initialize_system (VOID) {
 
     initialize_threads();
 
-    printf("initialize_system : system successfully initialized\n");
+    printf("initialize_system : system successfully initialized!!!\n");
     return TRUE;
 }
 
