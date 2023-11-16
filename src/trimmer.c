@@ -1,8 +1,8 @@
 #include <Windows.h>
 #include <stdio.h>
-#include "include/structs.h"
-#include "include/system.h"
-#include "include/debug.h"
+#include "../include/structs.h"
+#include "../include/system.h"
+#include "../include/debug.h"
 
 
 
