@@ -6,7 +6,7 @@
 
 #define FREE 0
 #define CLEAN 1
-#define ZEROED 2
+//#define ZEROED 2
 #define MODIFIED 3
 #define ACTIVE 4
 
@@ -14,6 +14,7 @@
 #define NUMBER_OF_DISC_PAGES                     (MB (16) / PAGE_SIZE)
 #define NUMBER_OF_SYSTEM_THREADS                 2
 
+#define BITMAP_CHUNK_SIZE                        8
 #define PTE_REGION_SIZE                          256
 // In this system this evaluates to 17
 #define NUMBER_OF_PTE_REGIONS                    ((NUMBER_OF_PHYSICAL_PAGES + NUMBER_OF_DISC_PAGES) / PTE_REGION_SIZE)
@@ -35,6 +36,7 @@ extern PUCHAR disc_in_use;
 extern PUCHAR disc_end;
 extern PPFN pfn_metadata;
 extern PPFN pfn_metadata_end;
+extern ULONG_PTR highest_frame_number;
 
 extern HANDLE wake_aging_event;
 extern HANDLE modified_writing_event;
@@ -54,6 +56,5 @@ extern VOID fatal_error(VOID);
 extern BOOLEAN initialize_system(VOID);
 extern VOID deinitialize_system(VOID);
 extern BOOLEAN full_virtual_memory_test(VOID);
-extern PPFN pfn_from_frame_number(ULONG64 frame_number);
 
 #endif //VM_SYSTEM_H

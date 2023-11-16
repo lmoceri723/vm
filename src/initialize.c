@@ -1,12 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <windows.h>
-#include "macros.h"
-#include "structs.h"
-#include "system.h"
+#include <Windows.h>
+#include "include/macros.h"
+#include "include/structs.h"
+#include "include/system.h"
 
 #pragma comment(lib, "advapi32.lib")
-
 
 int compare(const void * a, const void * b);
 
@@ -25,6 +24,7 @@ HANDLE modified_writing_event;
 HANDLE pages_available_event;
 HANDLE disc_spot_available_event;
 HANDLE system_exit_event;
+
 
 CRITICAL_SECTION pte_lock;
 CRITICAL_SECTION pfn_lock;
@@ -183,7 +183,7 @@ BOOLEAN create_page_file(ULONG_PTR bytes)
 
     // LM Fix merge malloc calls to be one single malloc
     // TODO LM Fix instead, make this an actual disc write
-    ULONG_PTR size = bytes / PAGE_SIZE / sizeof(char);
+    ULONG_PTR size = bytes / PAGE_SIZE / BITMAP_CHUNK_SIZE;
     disc_in_use = malloc(size);
     if (disc_in_use == NULL)
     {
@@ -297,10 +297,11 @@ BOOLEAN initialize_pte_metadata(VOID)
 
 BOOLEAN initialize_pfn_metadata(VOID)
 {
-    ULONG_PTR range = physical_page_numbers[physical_page_count - 1];
+   highest_frame_number = physical_page_numbers[physical_page_count - 1];
 
-    pfn_metadata = VirtualAlloc(NULL,range * sizeof(PFN),
+    pfn_metadata = VirtualAlloc(NULL,highest_frame_number * sizeof(PFN),
                                 MEM_RESERVE,PAGE_READWRITE);
+    pfn_metadata_end = pfn_metadata + highest_frame_number * sizeof(PFN);
 
     if (pfn_metadata == NULL) {
         printf("initialize_pfn_metadata : could not reserve memory for pfn metadata\n");
@@ -438,6 +439,7 @@ VOID deinitialize_system (VOID)
     // We need to close all system threads and wait for them to exit before proceeding
     // This happens so that no thread tries to access a data structure that we have freed
     SetEvent(system_exit_event);
+    printf("deinitialize_system : waiting for system threads to exit\n");
     WaitForMultipleObjects(NUMBER_OF_SYSTEM_THREADS, system_handles, TRUE, INFINITE);
 
     // Now that we're done with our memory, we are able to free it

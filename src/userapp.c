@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <windows.h>
-#include "userapp.h"
+#include <Windows.h>
+#include "include/userapp.h"
 
 #pragma comment(lib, "advapi32.lib")
 

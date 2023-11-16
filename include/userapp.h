@@ -4,7 +4,7 @@
 #define VM_USERAPP_H
 #include <stdio.h>
 #include <stdlib.h>
-#include <windows.h>
+#include <Windows.h>
 
 #define PAGE_SIZE                   4096
 #define MB(x)                       ((x) * 1024 * 1024)

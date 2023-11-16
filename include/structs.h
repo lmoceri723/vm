@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <windows.h>
+#include <Windows.h>
 
 #define PAGE_SIZE                   4096
 #define MB(x)                       ((x) * 1024 * 1024)
@@ -56,5 +56,25 @@ typedef struct {
     ULONG_PTR num_pages;
     CRITICAL_SECTION lock;
 } PFN_LIST, *PPFN_LIST;
+
+
+extern PPTE pte_from_va(PVOID virtual_address);
+extern PVOID va_from_pte(PPTE pte);
+extern ULONG64 frame_number_from_pfn(PPFN pfn);
+extern PPFN pfn_from_frame_number(ULONG64 frame_number);
+
+extern VOID lock_pte(PPTE pte);
+extern VOID unlock_pte(PPTE pte);
+extern VOID lock_pfn(PPFN pfn);
+extern VOID unlock_pfn(PPFN pfn);
+
+extern PTE read_pte(PPTE pte);
+extern VOID write_pte(PPTE pte, PTE pte_contents);
+extern PFN read_pfn(PPFN pfn);
+extern VOID write_pfn(PPFN pfn, PFN pfn_contents);
+
+extern VOID remove_from_list(PPFN pfn, BOOLEAN holds_locks);
+extern VOID add_to_list(PPFN pfn, PPFN_LIST listhead, BOOLEAN holds_locks);
+extern PPFN pop_from_list(PPFN_LIST listhead, BOOLEAN holds_locks);
 
 #endif //VM_STRUCTS_H
