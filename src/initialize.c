@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <Windows.h>
-#include "include/macros.h"
-#include "include/structs.h"
-#include "include/system.h"
+#include "../include/macros.h"
+#include "../include/structs.h"
+#include "../include/system.h"
 
 #pragma comment(lib, "advapi32.lib")
 

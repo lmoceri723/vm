@@ -4,7 +4,7 @@
 
 #ifndef VM_DEBUG_H
 #define VM_DEBUG_H
-#include "include/structs.h"
+#include "structs.h"
 
 #if 0
 #define DBG                TRUE

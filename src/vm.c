@@ -1,10 +1,10 @@
 #include <stdio.h>
 #include <Windows.h>
 #include <time.h>
-#include "include/structs.h"
-#include "include/system.h"
-#include "include/userapp.h"
-#include "include/debug.h"
+#include "../include/structs.h"
+#include "../include/system.h"
+#include "../include/userapp.h"
+#include "../include/debug.h"
 
 #pragma comment(lib, "advapi32.lib")
 

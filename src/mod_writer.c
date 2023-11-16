@@ -1,5 +1,5 @@
-#include "include/debug.h"
-#include "include/system.h"
+#include "../include/debug.h"
+#include "../include/system.h"
 
 // TODO make this work with a 64 bit ULONG64
 // This is very important, as it speeds this iteration up exponentially

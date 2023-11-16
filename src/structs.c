@@ -1,7 +1,7 @@
-#include "include/structs.h"
-#include "include/system.h"
-#include "include/debug.h"
-#include "include/macros.h"
+#include "../include/structs.h"
+#include "../include/system.h"
+#include "../include/debug.h"
+#include "../include/macros.h"
 
 PPTE pte_base;
 PPTE pte_end;

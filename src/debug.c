@@ -1,4 +1,4 @@
-#include "include/debug.h"
+#include "../include/debug.h"
 
 
 // Checks the integrity of a pfn list
