@@ -3,10 +3,12 @@
 #include <time.h>
 #include "../include/structs.h"
 #include "../include/system.h"
-#include "../include/userapp.h"
 #include "../include/debug.h"
 
 #pragma comment(lib, "advapi32.lib")
+// TODO LM FIX FIGURE OUT ATTRIBUTE UNUSED AND FIX OTHER WARNINGS
+// TODO LM FIX ENSURE ALL PTE AND PFN WRITES ARE DONE WITH OUR NEW METHOD
+// TODO LM FIX ADD SAFE REMOVALS FROM LIST TO POP_FROM_LIST AND REMOVE HOLDS_LOCKS
 
 PPFN get_free_page(VOID);
 PPFN read_page_on_disc(PPTE pte, PPFN free_page);
@@ -20,8 +22,8 @@ PVOID modified_write_va;
 PVOID modified_read_va;
 PVOID repurpose_zero_va;
 PVOID disc_space;
-PUCHAR disc_in_use;
-PUCHAR disc_end;
+PULONG64 disc_in_use;
+PULONG64 disc_in_use_end;
 
 // This breaks into the debugger if possible,
 // Otherwise it crashes the program
@@ -83,8 +85,6 @@ PPFN get_free_page(VOID) {
             took_standby_page = TRUE;
         }
 
-        // TODO make pte and pfn writing a function, pass in a local with the contents and the address and
-        //  store the changes in a buffer
         PPTE other_pte = free_page->pte;
         ULONG64 other_disc_index = free_page->disc_index;
         // We want to start writing entire PTEs instead of writing them bit by bit
@@ -139,7 +139,7 @@ PPFN read_page_on_disc(PPTE pte, PPFN free_page)
     }
 
     // This would be a disc driver that does this read and write in a real operating system
-    PVOID source = (PVOID) ((ULONG_PTR) disc_space + pte->disc_format.disc_index * PAGE_SIZE);
+    PVOID source = (PVOID) ((ULONG_PTR) disc_space + (pte->disc_format.disc_index * PAGE_SIZE));
     memcpy(modified_read_va, source, PAGE_SIZE);
 
     if (MapUserPhysicalPages(modified_read_va, 1, NULL) == FALSE) {
@@ -157,19 +157,23 @@ PPFN read_page_on_disc(PPTE pte, PPFN free_page)
 // TODO also make this work with a 64 bit ULONG64
 VOID free_disc_space(ULONG64 disc_index)
 {
+    PULONG64 disc_spot;
+    ULONG64 spot_cluster;
+    ULONG index_in_cluster;
+
     EnterCriticalSection(&disc_in_use_lock);
 
     // This grabs the actual char (byte) that holds the bit we need to change
-    PUCHAR disc_spot = disc_in_use + disc_index / BITMAP_CHUNK_SIZE;
-    UCHAR spot_cluster = *disc_spot;
+    disc_spot = disc_in_use + disc_index / BITS_PER_BYTE;
+    spot_cluster = *disc_spot;
 
     // This gets the bit's index inside the char
-    ULONG index_in_char = disc_index % BITMAP_CHUNK_SIZE;
+    index_in_cluster = disc_index % BITMAP_CHUNK_SIZE;
 
     // We set the bit to be zero by comparing it using a LOGICAL AND (&=) with all ones,
     // Except for a zero at the place we want to set as zero.
     // We compute this comparison value by taking one positive bit (1)
-    // And left-shifting (<<) it by index_in_char bits to its corresponding position in the char
+    // And left-shifting (<<) it by index_in_cluster bits to its corresponding position in the char
     // If the position is two, then our 1 would become 001. Five more bits would then be added to the end
     // By the compiler in order to match the size of the char it is being compared to (00100000)
     // Then we flip these bits using the (~) operator to get our comparison value
@@ -179,9 +183,9 @@ VOID free_disc_space(ULONG64 disc_index)
     // The zero surrounded by parenthesis is the bit we change; all others are preserved
 
     // This asserts that the disc space is not already free
-    assert(spot_cluster & (1<<(index_in_char)))
+    assert(spot_cluster & (1<<(index_in_cluster)))
 
-    spot_cluster &= ~(1<<(index_in_char));
+    spot_cluster &= ~(1<<(index_in_cluster));
 
     // Write the char back out after the bit has been changed
     *disc_spot = spot_cluster;
@@ -189,8 +193,6 @@ VOID free_disc_space(ULONG64 disc_index)
     LeaveCriticalSection(&disc_in_use_lock);
     SetEvent(disc_spot_available_event);
 }
-
-
 
 // This is where we handle any access or fault of a page
 VOID page_fault_handler(PVOID arbitrary_va)
@@ -224,7 +226,7 @@ VOID page_fault_handler(PVOID arbitrary_va)
     // We know this page is active because its valid bit is set, which only exists in a memory format pte
     if (pte_contents.memory_format.valid == 1)
     {
-        // TODO LM FIX write a function that uses a dictionary to update debug stats
+        // LM MULTITHREADING FIX write a function that uses a dictionary to update debug stats and uses interlocked increment
         fake_faults++;
         // We do this check to avoid a pte write
         if (pte_contents.memory_format.age == 0)
@@ -304,14 +306,14 @@ VOID page_fault_handler(PVOID arbitrary_va)
         assert(pte_contents.transition_format.always_zero == 0)
         assert(pte_contents.transition_format.always_zero2 == 0)
         assert(pte_contents.transition_format.frame_number == frame_number_from_pfn(pfn))
-        assert(pfn->flags.state == CLEAN || pfn->flags.state == MODIFIED)
+        assert(pfn->flags.state == STANDBY || pfn->flags.state == MODIFIED)
 
         if (pfn->flags.state == MODIFIED) {
             EnterCriticalSection(&modified_page_list.lock);
             remove_from_list(pfn, TRUE);
             LeaveCriticalSection(&modified_page_list.lock);
 
-        } else /*(pfn->flags.state == CLEAN) */{
+        } else /*(pfn->flags.state == STANDBY) */{
 
             EnterCriticalSection(&standby_page_list.lock);
             remove_from_list(pfn, TRUE);
@@ -359,6 +361,7 @@ PVOID allocate_memory(PULONG_PTR num_bytes)
 }
 
 // This main is likely to be moved to userapp.c in the future
+// Figure out attribute unused
 int main (int argc, char** argv)
 {
      /* This is where we initialize and test our virtual memory management state machine
@@ -377,16 +380,9 @@ int main (int argc, char** argv)
      Virtual memory operations like handling page faults, materializing mappings, freeing them, trimming them,
      Writing them out to a paging file, bringing them back from the paging file, protecting them, and much more */
 
-    if (initialize_system() == FALSE) {
-        printf("main : could not initialize system");
-        return 1;
-    }
+    initialize_system();
 
-    if (full_virtual_memory_test() == FALSE)
-    {
-        printf("main : full virtual memory test failed");
-        return 1;
-    }
+    full_virtual_memory_test();
 
     deinitialize_system();
     return 0;

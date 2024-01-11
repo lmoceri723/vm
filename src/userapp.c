@@ -3,6 +3,8 @@
 #include <Windows.h>
 #include "../include/userapp.h"
 
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "UnreachableCode"
 #pragma comment(lib, "advapi32.lib")
 
 // This corresponds to how many times a random va will be written to in our test
@@ -16,7 +18,7 @@ ULONG64 num_first_accesses;
 ULONG64 num_reaccesses;
 
 
-BOOLEAN full_virtual_memory_test (VOID) {
+VOID full_virtual_memory_test (VOID) {
 
     PULONG_PTR arbitrary_va;
     ULONG random_number;
@@ -52,7 +54,9 @@ BOOLEAN full_virtual_memory_test (VOID) {
         // (without faulting to the operating system again).
 
         // This computes a random virtual address within our range
-        random_number = rand();
+
+        // LM FUTURE FIX this is not a uniform distribution, also be wary of the max value of rand()
+        random_number = rand(); // NOLINT(*-msc50-cpp)
         random_number %= virtual_address_size_in_pages;
         arbitrary_va = p + (random_number * PAGE_SIZE) / sizeof(ULONG_PTR);
 
@@ -86,7 +90,6 @@ BOOLEAN full_virtual_memory_test (VOID) {
                 page_faulted = TRUE;
             }
 
-            // TODO LM FIX separate fake faults into another function
             page_fault_handler(arbitrary_va);
         } while (TRUE == page_faulted);
     }
@@ -96,7 +99,6 @@ BOOLEAN full_virtual_memory_test (VOID) {
     printf("full_virtual_memory_test : finished accessing %d random virtual addresses in %lu ms (%f s)\n",
            NUM_ADDRESSES, time_elapsed, time_elapsed / 1000.0);
     printf("full_virtual_memory_test : took %llu faults and %llu fake faults\n", num_faults, fake_faults);
-
-
-    return TRUE;
 }
+
+#pragma clang diagnostic pop

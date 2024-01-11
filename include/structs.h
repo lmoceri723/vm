@@ -6,7 +6,7 @@
 #include <Windows.h>
 
 #define PAGE_SIZE                   4096
-#define MB(x)                       ((x) * 1024 * 1024)
+//#define MB(x)                       ((x) * 1024 * 1024)
 
 typedef struct {
     ULONG64 valid:1;
@@ -38,9 +38,9 @@ typedef struct {
 } PTE, *PPTE;
 
 typedef struct {
-    // States are FREE, CLEAN, ZEROED (to be added), ACTIVE, and MODIFIED
+    // States are FREE, STANDBY, ZEROED (to be added), ACTIVE, and MODIFIED
     ULONG state:3;
-    // TODO these locks can be made into single bits instead of massive CRITICAL_SECTIONS
+    // LM FUTURE FIX these locks can be made into single bits instead of massive CRITICAL_SECTIONS
     CRITICAL_SECTION lock;
 }PFN_FLAGS/*, *PPFN_FLAGS*/;
 

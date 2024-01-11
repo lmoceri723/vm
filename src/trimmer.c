@@ -6,63 +6,74 @@
 
 
 
-// TODO read over this and write comments
-// TODO write this to accept a pte instead of a pfn
-// This is better to be done after finalizing aging/trimming pages
-// This function puts an individual page on the modified list
-void trim(PPFN page)
+
+// This function puts an individual page on the modified list given its PTE
+void trim(PPTE pte)
 {
-    PVOID user_va = va_from_pte(page->pte);
+    PPFN pfn;
+    PFN pfn_contents;
+    PTE old_pte_contents;
+    PTE new_pte_contents;
+    PVOID user_va;
+
+    pfn = pfn_from_frame_number(pte->memory_format.frame_number);
+
+    lock_pfn(pfn);
+
+    user_va = va_from_pte(pte);
     if (user_va == NULL)
     {
         printf("trim : could not get the va connected to the pte");
         fatal_error();
     }
 
-    // The user va is still mapped, we need to unmap it here to stop the user from changing it
+    // The user VA is still mapped, we need to unmap it here to stop the user from changing it
     // Any attempt to modify this va will lead to a page fault so that we will not be able to have stale data
     if (MapUserPhysicalPages (user_va, 1, NULL) == FALSE) {
 
-        printf ("trim : could not unmap VA %p to page %llX\n", user_va, frame_number_from_pfn(page));
+        printf ("trim : could not unmap VA %p to page %llX\n", user_va, frame_number_from_pfn(pfn));
         fatal_error();
     }
 
-    // This is safe as I hold both locks already here
-    PPTE pte = page->pte;
-    PTE old_pte_contents = read_pte(pte);
-    PTE new_pte_contents;
-    new_pte_contents.entire_format = 0;
-
+    // This writes the new contents into the PTE and PFN
+    old_pte_contents = read_pte(pte);
     assert(old_pte_contents.memory_format.valid == 1)
 
-    assert(new_pte_contents.transition_format.always_zero == 0)
+    // The pte is zeroed out here to ensure no stale data remains
+    new_pte_contents.entire_format = 0;
     new_pte_contents.transition_format.frame_number = old_pte_contents.memory_format.frame_number;
-
     write_pte(pte, new_pte_contents);
 
-    page->flags.state = MODIFIED;
+    pfn_contents = read_pfn(pfn);
+    pfn_contents.flags.state = MODIFIED;
+    write_pfn(pfn, pfn_contents);
+
+    // Add the page to the modified list
     EnterCriticalSection(&modified_page_list.lock);
 
-    add_to_list(page, &modified_page_list, TRUE);
+    add_to_list(pfn, &modified_page_list, TRUE);
 
     LeaveCriticalSection(&modified_page_list.lock);
+
+    unlock_pfn(pfn);
 
     SetEvent(modified_writing_event);
 }
 
-// TODO refine this by implementing the strategies below
-//  Afterwards, read over this and write comments
-// Age based on consumption
+// This function ages PTEs by incrementing their age by 1
+// If the age is 7, then the page is trimmed
+// Their age is reset when they are accessed by a program
+
+// LM FUTURE FIX refine this by implementing the strategies below
 // Hop over pte regions, which will have both a bit-map and valid count / fancy skipping
 // 33 bytes
 // combine 0 and 256 by doing another read (try to see if 255 and 256 can be combined instead
 VOID age_pages()
 {
     PPTE pte;
-    PPFN pfn;
-
     pte = pte_base;
 
+    // Iterates over all PTEs and ages them
     while (pte != pte_end)
     {
         lock_pte(pte);
@@ -70,11 +81,7 @@ VOID age_pages()
         {
             if (pte->memory_format.age == 7)
             {
-                pfn = pfn_from_frame_number(pte->memory_format.frame_number);
-
-                lock_pfn(pfn);
-                trim(pfn);
-                unlock_pfn(pfn);
+                trim(pte);
             }
             else
             {
@@ -82,6 +89,7 @@ VOID age_pages()
             }
         }
         unlock_pte(pte);
+        // The compiler allows us to do this
         pte++;
     }
 }
@@ -108,7 +116,7 @@ DWORD trim_thread(PVOID context) {
             break;
         }
 
-        // TODO LM FIX we want to rewrite this to try and meet a target given to this thread based on previous demand
+        // LM MULTITHREADING FIX we want to rewrite this to try and meet a target given to this thread based on previous demand
         while (free_page_list.num_pages + standby_page_list.num_pages <= physical_page_count / 4
                && free_page_list.num_pages + standby_page_list.num_pages + modified_page_list.num_pages != physical_page_count)
         {

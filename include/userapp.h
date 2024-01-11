@@ -8,7 +8,7 @@
 
 #define PAGE_SIZE                   4096
 #define MB(x)                       ((x) * 1024 * 1024)
-#define GB(x)                       (MB (x) * 1024)
+//#define GB(x)                       (MB (x) * 1024)
 
 
 extern ULONG64 fake_faults;

@@ -2,10 +2,10 @@
 #define VM_SYSTEM_H
 
 #include "structs.h"
-
+#include "userapp.h"
 
 #define FREE 0
-#define CLEAN 1
+#define STANDBY 1
 //#define ZEROED 2
 #define MODIFIED 3
 #define ACTIVE 4
@@ -14,8 +14,11 @@
 #define NUMBER_OF_DISC_PAGES                     (MB (16) / PAGE_SIZE)
 #define NUMBER_OF_SYSTEM_THREADS                 2
 
-#define BITMAP_CHUNK_SIZE                        8
+#define BITS_PER_BYTE                            8
+#define BITMAP_CHUNK_SIZE                        (8 * BITS_PER_BYTE)
+#define FULL_BITMAP_CHUNK                        ((ULONG64) - 1) // 0xFFFFFFFFFFFFFFFF
 #define PTE_REGION_SIZE                          256
+
 // In this system this evaluates to 17
 #define NUMBER_OF_PTE_REGIONS                    ((NUMBER_OF_PHYSICAL_PAGES + NUMBER_OF_DISC_PAGES) / PTE_REGION_SIZE)
 
@@ -32,10 +35,10 @@ extern PVOID modified_write_va;
 extern PVOID modified_read_va;
 extern PVOID repurpose_zero_va;
 extern PVOID disc_space;
-extern PUCHAR disc_in_use;
-extern PUCHAR disc_end;
-extern PPFN pfn_metadata;
-extern PPFN pfn_metadata_end;
+extern PULONG64 disc_in_use;
+extern PULONG64 disc_in_use_end;
+extern PPFN pfn_base;
+extern PPFN pfn_end;
 extern ULONG_PTR highest_frame_number;
 
 extern HANDLE wake_aging_event;
@@ -53,8 +56,8 @@ extern DWORD modified_write_thread(PVOID context);
 extern DWORD trim_thread(PVOID context);
 
 extern VOID fatal_error(VOID);
-extern BOOLEAN initialize_system(VOID);
+extern VOID initialize_system(VOID);
 extern VOID deinitialize_system(VOID);
-extern BOOLEAN full_virtual_memory_test(VOID);
+extern VOID full_virtual_memory_test(VOID);
 
 #endif //VM_SYSTEM_H

@@ -13,7 +13,9 @@ file(GLOB SOURCES "src/*.c")
 add_executable(vm ${SOURCES})
 
 # Configure Output Directory
-set_target_properties(vm PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+#set_target_properties(vm PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+#set_target_properties(vm PROPERTIES RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR})
+#set_target_properties(vm PROPERTIES RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR})
 
 # Configure installation
 install(TARGETS vm DESTINATION bin)

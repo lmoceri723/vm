@@ -6,8 +6,8 @@
 PPTE pte_base;
 PPTE pte_end;
 
-PPFN pfn_metadata;
-PPFN pfn_metadata_end;
+PPFN pfn_base;
+PPFN pfn_end;
 ULONG_PTR highest_frame_number;
 
 PFN_LIST free_page_list;
@@ -61,18 +61,18 @@ PPFN pfn_from_frame_number(ULONG64 frame_number)
     }
 
     // Again, the compiler implicitly multiplies frame number by PFN size
-    return pfn_metadata + frame_number;
+    return pfn_base + frame_number;
 }
 
 ULONG64 frame_number_from_pfn(PPFN pfn)
 {
-    if (pfn == NULL || pfn > pfn_metadata_end || pfn < pfn_metadata)
+    if (pfn == NULL || pfn > pfn_end || pfn < pfn_base)
     {
         printf("frame_number_from_pfn : pfn is out of valid range");
         fatal_error();
     }
 
-    return pfn - pfn_metadata;
+    return pfn - pfn_base;
 }
 
 // This removes the first element from a pfn list and returns it
@@ -120,7 +120,7 @@ VOID remove_from_list(PPFN pfn, BOOLEAN holds_locks)
 
         listhead = &modified_page_list;
 
-    } else if (pfn->flags.state == CLEAN) {
+    } else if (pfn->flags.state == STANDBY) {
 
         // This is on the standby list
         listhead = &standby_page_list;
@@ -195,8 +195,7 @@ VOID log_pfn_write(PFN initial, PFN new)
 #endif
 PTE read_pte(PPTE pte)
 {
-    // TODO LM FIX change this comment
-    // Now this is written as a single 64 bit value instead of in parts
+    // This atomically reads the pte as a single 64 bit value
     // This is needed because the cpu or another concurrent faulting thread
     // Can still access this pte in transition format and see an intermediate state
     PTE local;

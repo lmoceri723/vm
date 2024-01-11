@@ -12,6 +12,7 @@ int compare(const void * a, const void * b);
 PULONG_PTR physical_page_numbers;
 
 // These are required to be initialized by the thread api, but they are not used currently
+
 PHANDLE thread_handles;
 PULONG thread_ids;
 
@@ -25,7 +26,6 @@ HANDLE pages_available_event;
 HANDLE disc_spot_available_event;
 HANDLE system_exit_event;
 
-
 CRITICAL_SECTION pte_lock;
 CRITICAL_SECTION pfn_lock;
 CRITICAL_SECTION pte_region_locks[NUMBER_OF_PTE_REGIONS];
@@ -35,7 +35,7 @@ SYSTEM_INFO info;
 ULONG num_processors;
 
 
-BOOL GetPrivilege(VOID)
+VOID GetPrivilege(VOID)
 {
     struct {
         DWORD Count;
@@ -57,7 +57,7 @@ BOOL GetPrivilege(VOID)
 
     if (Result == FALSE) {
         printf ("get_privilege : cannot open process token.\n");
-        return FALSE;
+        fatal_error();
     }
 
     // Enable the privilege.
@@ -71,7 +71,7 @@ BOOL GetPrivilege(VOID)
 
     if (Result == FALSE) {
         printf ("get_privilege : cannot get privilege\n");
-        return FALSE;
+        fatal_error();
     }
 
     // Adjust the privilege and check the result
@@ -80,17 +80,15 @@ BOOL GetPrivilege(VOID)
 
     if (Result == FALSE) {
         printf ("get_privilege : cannot adjust token privileges %lu\n", GetLastError ());
-        return FALSE;
+        fatal_error();
     }
 
     if (GetLastError () != ERROR_SUCCESS) {
         printf ("get_privilege : cannot enable the SE_LOCK_MEMORY_NAME privilege - check local policy\n");
-        return FALSE;
+         fatal_error();
     }
 
     CloseHandle(Token);
-
-    return TRUE;
 }
 
 VOID initialize_locks(VOID)
@@ -172,31 +170,36 @@ VOID initialize_threads(VOID)
     }
 }
 
-BOOLEAN create_page_file(ULONG_PTR bytes)
+// LM FUTURE FIX make this an actual disc write
+VOID initialize_page_file(ULONG64 num_disc_pages)
 {
+    ULONG64 bytes;
+    ULONG64 bitmap_size_in_bytes;
+
+    // We have 101% assurance of this
+    bytes = num_disc_pages * PAGE_SIZE;
+
     disc_space = malloc(bytes);
     if (disc_space == NULL)
     {
-        printf("create_page_file : could not allocate memory for disc space");
-        return FALSE;
+        printf("initialize_page_file : could not allocate memory for disc space");
+        fatal_error();
     }
+    //memset(disc_space, 0, bytes);
 
-    // LM Fix merge malloc calls to be one single malloc
-    // TODO LM Fix instead, make this an actual disc write
-    ULONG_PTR size = bytes / PAGE_SIZE / BITMAP_CHUNK_SIZE;
-    disc_in_use = malloc(size);
+    // We are 100% sure of this
+    bitmap_size_in_bytes = num_disc_pages / BITS_PER_BYTE;
+
+    disc_in_use = malloc(bitmap_size_in_bytes);
     if (disc_in_use == NULL)
     {
-        printf("create_page_file : could not allocate memory for disc in use array");
-        return FALSE;
+        printf("initialize_page_file : could not allocate memory for disc in use array");
+        fatal_error();
     }
-    memset(disc_in_use, 0, size);
+    memset(disc_in_use, 0, bitmap_size_in_bytes);
 
-    disc_end = disc_in_use + size;
-
-    disc_page_count = bytes / PAGE_SIZE;
-
-    return TRUE;
+    disc_in_use_end = disc_in_use + bitmap_size_in_bytes;
+    disc_page_count = num_disc_pages;
 }
 
 
@@ -213,7 +216,7 @@ VOID initialize_page_lists(VOID)
 
 }
 
-BOOLEAN initialize_readwrite_va(VOID)
+VOID initialize_readwrite_va(VOID)
 {
     modified_write_va = VirtualAlloc(NULL,
                                      PAGE_SIZE,
@@ -222,7 +225,7 @@ BOOLEAN initialize_readwrite_va(VOID)
 
     if (modified_write_va == NULL) {
         printf("initialize_readwrite_va : could not reserve memory for modified write va\n");
-        return FALSE;
+        fatal_error();
     }
 
     modified_read_va = VirtualAlloc(NULL,
@@ -232,7 +235,7 @@ BOOLEAN initialize_readwrite_va(VOID)
 
     if (modified_read_va == NULL) {
         printf("initialize_readwrite_va : could not reserve memory for modified write va\n");
-        return FALSE;
+        fatal_error();
     }
 
     repurpose_zero_va = VirtualAlloc(NULL,
@@ -242,13 +245,11 @@ BOOLEAN initialize_readwrite_va(VOID)
 
     if (repurpose_zero_va == NULL) {
         printf("initialize_readwrite_va : could not reserve memory for repurpose zero va\n");
-        return FALSE;
+        fatal_error();
     }
-
-    return TRUE;
 }
 
-BOOLEAN initialize_va_space(VOID)
+VOID initialize_va_space(VOID)
 {
     // Reserve a user address space region using the Windows kernel
     // AWE (address windowing extensions) APIs.
@@ -261,7 +262,7 @@ BOOLEAN initialize_va_space(VOID)
     // We want more virtual than physical memory to illustrate this illusion.
     // We also do not give too much virtual memory as we still want to be able to illustrate the illusion
 
-    // TODO LM ASK why -1 here?
+    // LM ASK why -1 here?
     virtual_address_size = (physical_page_count + disc_page_count - 1) * PAGE_SIZE;
 
     // Round down to a PAGE_SIZE boundary
@@ -275,37 +276,34 @@ BOOLEAN initialize_va_space(VOID)
 
     if (va_base == NULL) {
         printf("initialize_va_space : could not reserve memory for virtual addresses\n");
-        return FALSE;
+        fatal_error();
     }
-
-    return TRUE;
 }
 
-BOOLEAN initialize_pte_metadata(VOID)
+VOID initialize_pte_metadata(VOID)
 {
     ULONG_PTR num_pte_bytes = virtual_address_size / PAGE_SIZE * sizeof(PTE);
     pte_base = malloc(num_pte_bytes);
     if (pte_base == NULL) {
         printf("initialize_pte_metadata : could not reserve memory for pte metadata\n");
-        return FALSE;
+        fatal_error();
     }
     memset(pte_base, 0, num_pte_bytes);
     pte_end = pte_base + num_pte_bytes / sizeof(PTE);
 
-    return TRUE;
 }
 
-BOOLEAN initialize_pfn_metadata(VOID)
+VOID initialize_pfn_metadata(VOID)
 {
    highest_frame_number = physical_page_numbers[physical_page_count - 1];
 
-    pfn_metadata = VirtualAlloc(NULL,highest_frame_number * sizeof(PFN),
-                                MEM_RESERVE,PAGE_READWRITE);
-    pfn_metadata_end = pfn_metadata + highest_frame_number * sizeof(PFN);
+    pfn_base = VirtualAlloc(NULL, highest_frame_number * sizeof(PFN),
+                            MEM_RESERVE, PAGE_READWRITE);
+    pfn_end = pfn_base + highest_frame_number * sizeof(PFN);
 
-    if (pfn_metadata == NULL) {
+    if (pfn_base == NULL) {
         printf("initialize_pfn_metadata : could not reserve memory for pfn metadata\n");
-        return FALSE;
+        fatal_error();
     }
 
     PPFN pfn;
@@ -319,17 +317,16 @@ BOOLEAN initialize_pfn_metadata(VOID)
             continue;
         }
 
-        LPVOID result = VirtualAlloc(pfn_metadata + physical_page_numbers[i],sizeof(PFN),
-                     MEM_COMMIT,PAGE_READWRITE);
+        LPVOID result = VirtualAlloc(pfn_base + physical_page_numbers[i], sizeof(PFN),
+                                     MEM_COMMIT, PAGE_READWRITE);
 
         if (result == NULL) {
             printf("initialize_pfn_metadata : could not commit memory for pfn %llu in pfn metadata\n", i);
-            return FALSE;
+            fatal_error();
         }
 
-        memset(pfn_metadata + physical_page_numbers[i], 0, sizeof(PFN));
+        memset(pfn_base + physical_page_numbers[i], 0, sizeof(PFN));
 
-        // TODO can result go here?
         pfn = pfn_from_frame_number(frame_number);
         pfn->flags.state = FREE;
         InitializeCriticalSection(&pfn->flags.lock);
@@ -339,10 +336,9 @@ BOOLEAN initialize_pfn_metadata(VOID)
     }
 
     //free(physical_page_numbers);
-    return TRUE;
 }
 
-BOOLEAN initialize_pages()
+VOID initialize_pages()
 {
     physical_page_count = NUMBER_OF_PHYSICAL_PAGES;
 
@@ -352,13 +348,13 @@ BOOLEAN initialize_pages()
 
     if (physical_page_numbers == NULL) {
         printf("initialize_pages : could not allocate array to hold physical page numbers\n");
-        return FALSE;
+        fatal_error();
     }
 
     if (AllocateUserPhysicalPages(physical_page_handle,&physical_page_count,
                                   physical_page_numbers) == FALSE) {
         printf("initialize_pages : could not allocate physical pages\n");
-        return FALSE;
+        fatal_error();
     }
 
     if (physical_page_count != NUMBER_OF_PHYSICAL_PAGES) {
@@ -369,68 +365,39 @@ BOOLEAN initialize_pages()
 
 
     qsort(physical_page_numbers, physical_page_count, sizeof(ULONG_PTR), compare);
-    return TRUE;
 }
 
 int compare (const void *a, const void *b) {
-    return ( *(PULONG_PTR)a - *(PULONG_PTR)b );
+    return ( *(PULONG_PTR) a - *(PULONG_PTR) b );
 }
 
-BOOLEAN initialize_system (VOID) {
+VOID initialize_system (VOID) {
 
     // First, acquire privilege as the operating system reserves the sole right to allocate pages.
-    if (GetPrivilege() == FALSE) {
-        printf("initialize_system : could not get privilege\n");
-        return FALSE;
-    }
+    GetPrivilege();
 
     physical_page_handle = GetCurrentProcess();
 
     initialize_locks();
     initialize_events();
 
-    if (initialize_pages() == FALSE)
-    {
-        printf("initialize_system : could not initialize pages\n");
-        return FALSE;
-    }
+    initialize_pages();
 
     initialize_page_lists();
 
-    if (initialize_pfn_metadata() == FALSE)
-    {
-        printf("initialize_system : could not initialize pfn metadata\n");
-        return FALSE;
-    }
+    initialize_pfn_metadata();
 
-    if (create_page_file(NUMBER_OF_DISC_PAGES * PAGE_SIZE) == FALSE)
-    {
-        printf("initialize_system : could not create page file\n");
-        return FALSE;
-    }
+    initialize_page_file(NUMBER_OF_DISC_PAGES);
 
-    if (initialize_va_space() == FALSE)
-    {
-        printf("initialize_system : could not initialize va space\n");
-        return FALSE;
-    }
+    initialize_va_space();
 
-    if (initialize_readwrite_va() == FALSE)
-    {
-        printf("initialize_system : could not initialize readwrite vas\n");
-        return FALSE;
-    }
+    initialize_readwrite_va();
 
-    if (initialize_pte_metadata() == FALSE)
-    {
-        printf("initialize_system : could not initialize pte metadata\n");
-        return FALSE;
-    }
+    initialize_pte_metadata();
 
     initialize_threads();
 
-    printf("initialize_system : system successfully initialized!!!\n");
-    return TRUE;
+    printf("initialize_system : system successfully initialized\n");
 }
 
 // Terminates the program and gives all resources back to the operating system
@@ -439,7 +406,6 @@ VOID deinitialize_system (VOID)
     // We need to close all system threads and wait for them to exit before proceeding
     // This happens so that no thread tries to access a data structure that we have freed
     SetEvent(system_exit_event);
-    printf("deinitialize_system : waiting for system threads to exit\n");
     WaitForMultipleObjects(NUMBER_OF_SYSTEM_THREADS, system_handles, TRUE, INFINITE);
 
     // Now that we're done with our memory, we are able to free it
@@ -449,7 +415,7 @@ VOID deinitialize_system (VOID)
     VirtualFree(va_base, virtual_address_size, MEM_RELEASE);
     free(disc_in_use);
     free(disc_space);
-    VirtualFree(pfn_metadata, physical_page_numbers[physical_page_count - 1] * sizeof(PFN),
+    VirtualFree(pfn_base, physical_page_numbers[physical_page_count - 1] * sizeof(PFN),
                 MEM_RELEASE);
 
     // We can also do the same for all of our pages

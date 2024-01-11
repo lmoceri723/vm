@@ -1,23 +1,22 @@
 #include "../include/debug.h"
 #include "../include/system.h"
 
-// TODO make this work with a 64 bit ULONG64
+// TODO LM FIX make this work with a 64 bit ULONG64
 // This is very important, as it speeds this iteration up exponentially
 // This is because the CPU will now be able to check 64 spots instead of 8 (char size spots) in a single register
-ULONG get_disc_index(VOID)
+ULONG64 get_disc_index(VOID)
 {
-    PUCHAR disc_spot;
-    ULONG disc_index;
-    UCHAR spot_cluster;
+    PULONG64 disc_spot;
+    ULONG64 spot_cluster;
+    ULONG index_in_cluster;
 
     EnterCriticalSection(&disc_in_use_lock);
 
     // Reads each char of our bit map and breaks when it finds a non-full char
     disc_spot = disc_in_use;
-    while (disc_spot != disc_end)
+    while (disc_spot != disc_in_use_end)
     {
-        // 0xFF is equal to a char with all bits set
-        if (*disc_spot != 0xFF)
+        if (*disc_spot != FULL_BITMAP_CHUNK)
         {
             break;
         }
@@ -26,15 +25,15 @@ ULONG get_disc_index(VOID)
 
     // In this case, no disc spots are available
     // This returns to the modified_write_thread, which waits for a disc spot to be free
-    if (disc_spot == disc_end)
+    if (disc_spot == disc_in_use_end)
     {
         LeaveCriticalSection(&disc_in_use_lock);
-        return MAXULONG32;
+        return FULL_BITMAP_CHUNK;
     }
 
     // This reads in the char (byte) with an empty slot
     spot_cluster = *disc_spot;
-    disc_index = 0;
+    index_in_cluster = 0;
     while (TRUE)
     {
         // First, we check if the leftmost bit is a zero
@@ -45,12 +44,12 @@ ULONG get_disc_index(VOID)
             // We set this bit by using a LOGICAL OR (|=) to compare our char to a comparison value
             // With a set bit at the index we want to set
             // This sets our bit to one without changing other bits
-            // We then left shift this value by disc_index bits
+            // We then left shift this value by index_in_cluster bits
             // In order to match the positions of our two bits
-            *disc_spot |= (1<<disc_index);
+            *disc_spot |= (1 << index_in_cluster);
             break;
         }
-        disc_index++;
+        index_in_cluster++;
         // This throws away the rightmost lowest bit, shifts every bit to the right, and the highest bit is set to zero
         // This is safe to do as we know that one of the 8 bits we are checking will be a zero
         // So we will never get to this pocket of zeroes at the end
@@ -60,7 +59,7 @@ ULONG get_disc_index(VOID)
 
     LeaveCriticalSection(&disc_in_use_lock);
     // This returns the exact index inside disc_in_use that corresponds to the now occupied disc spot
-    return (disc_spot - disc_in_use) * BITMAP_CHUNK_SIZE + disc_index;
+    return (disc_spot - disc_in_use) * BITS_PER_BYTE + index_in_cluster;
 }
 
 // This function takes the first modified page and writes it to the disc
@@ -109,12 +108,11 @@ BOOLEAN write_page_to_disc(VOID)
         fatal_error();
     }
 
-    ULONG disc_index = get_disc_index();
+    ULONG64 disc_index = get_disc_index();
 
     // At this point, we cannot get a disc index, so we put the page back on the modified list and wait for a spot
     // This is a last resort option, as we have to completely undo everything and try again
-    // TODO CHANGE THIS TO EFFECT NEW PAGE FILE SIZE
-    if (disc_index == MAXULONG32)
+    if (disc_index == FULL_BITMAP_CHUNK)
     {
         if (MapUserPhysicalPages (modified_write_va, 1, NULL) == FALSE) {
 
@@ -125,7 +123,7 @@ BOOLEAN write_page_to_disc(VOID)
 
         EnterCriticalSection(&modified_page_list.lock);
 
-        // TODO THINK ABOUT WHERE I WANT TO ADD THIS (FRONT OR BACK)
+        // LM FIX TODO we need to add back to the head
         add_to_list(pfn, &modified_page_list, TRUE);
 
         LeaveCriticalSection(&modified_page_list.lock);
@@ -139,8 +137,7 @@ BOOLEAN write_page_to_disc(VOID)
     // This computes the actual address of where we want to write the page contents in the paging file and copies it
     PVOID actual_space;
     actual_space = (PVOID) ((ULONG_PTR) disc_space + (disc_index * PAGE_SIZE));
-    // TODO LM FIX this will be problematic, we need to have a lock on this va
-    //  Or separate it into regions each thread has a hold over
+    //LM MULTITHREADING FIX this will be problematic, we need to have a lock on this va
     memcpy(actual_space, modified_write_va, PAGE_SIZE);
 
     // We can now unmap this from our va space as we have finished copying its contents to disc
@@ -158,7 +155,7 @@ BOOLEAN write_page_to_disc(VOID)
     // And we always want to access a frame number over a disc index
     // This allows us to extend the size of both variables instead of trying to cram them in a pte
     pfn->disc_index = disc_index;
-    pfn->flags.state = CLEAN;
+    pfn->flags.state = STANDBY;
 
     EnterCriticalSection(&standby_page_list.lock);
 
