@@ -171,35 +171,27 @@ VOID initialize_threads(VOID)
 }
 
 // LM FUTURE FIX make this an actual disc write
-VOID initialize_page_file(ULONG64 num_disc_pages)
+VOID initialize_page_file(ULONG64 bytes)
 {
-    ULONG64 bytes;
-    ULONG64 bitmap_size_in_bytes;
-
-    // We have 101% assurance of this
-    bytes = num_disc_pages * PAGE_SIZE;
-
     disc_space = malloc(bytes);
     if (disc_space == NULL)
     {
-        printf("initialize_page_file : could not allocate memory for disc space");
+        printf("create_page_file : could not allocate memory for disc space");
         fatal_error();
     }
-    //memset(disc_space, 0, bytes);
 
-    // We are 100% sure of this
-    bitmap_size_in_bytes = num_disc_pages / BITS_PER_BYTE;
-
-    disc_in_use = malloc(bitmap_size_in_bytes);
+    ULONG_PTR size = bytes / PAGE_SIZE / BITMAP_CHUNK_SIZE;
+    disc_in_use = malloc(size);
     if (disc_in_use == NULL)
     {
-        printf("initialize_page_file : could not allocate memory for disc in use array");
+        printf("create_page_file : could not allocate memory for disc in use array");
         fatal_error();
     }
-    memset(disc_in_use, 0, bitmap_size_in_bytes);
+    memset(disc_in_use, 0, size);
 
-    disc_in_use_end = disc_in_use + bitmap_size_in_bytes;
-    disc_page_count = num_disc_pages;
+    disc_in_use_end = disc_in_use + size;
+
+    disc_page_count = bytes / PAGE_SIZE;
 }
 
 
@@ -387,7 +379,7 @@ VOID initialize_system (VOID) {
 
     initialize_pfn_metadata();
 
-    initialize_page_file(NUMBER_OF_DISC_PAGES);
+    initialize_page_file(NUMBER_OF_DISC_PAGES * PAGE_SIZE);
 
     initialize_va_space();
 

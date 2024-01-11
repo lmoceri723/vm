@@ -6,8 +6,8 @@
 // This is because the CPU will now be able to check 64 spots instead of 8 (char size spots) in a single register
 ULONG64 get_disc_index(VOID)
 {
-    PULONG64 disc_spot;
-    ULONG64 spot_cluster;
+    PUCHAR disc_spot;
+    UCHAR spot_cluster;
     ULONG index_in_cluster;
 
     EnterCriticalSection(&disc_in_use_lock);
@@ -16,7 +16,7 @@ ULONG64 get_disc_index(VOID)
     disc_spot = disc_in_use;
     while (disc_spot != disc_in_use_end)
     {
-        if (*disc_spot != FULL_BITMAP_CHUNK)
+        if (*disc_spot != 0xFF)
         {
             break;
         }

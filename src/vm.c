@@ -22,8 +22,8 @@ PVOID modified_write_va;
 PVOID modified_read_va;
 PVOID repurpose_zero_va;
 PVOID disc_space;
-PULONG64 disc_in_use;
-PULONG64 disc_in_use_end;
+PUCHAR disc_in_use;
+PUCHAR disc_in_use_end;
 
 // This breaks into the debugger if possible,
 // Otherwise it crashes the program
@@ -157,14 +157,14 @@ PPFN read_page_on_disc(PPTE pte, PPFN free_page)
 // TODO also make this work with a 64 bit ULONG64
 VOID free_disc_space(ULONG64 disc_index)
 {
-    PULONG64 disc_spot;
-    ULONG64 spot_cluster;
+    PUCHAR disc_spot;
+    UCHAR spot_cluster;
     ULONG index_in_cluster;
 
     EnterCriticalSection(&disc_in_use_lock);
 
     // This grabs the actual char (byte) that holds the bit we need to change
-    disc_spot = disc_in_use + disc_index / BITS_PER_BYTE;
+    disc_spot = disc_in_use + disc_index / BITMAP_CHUNK_SIZE;
     spot_cluster = *disc_spot;
 
     // This gets the bit's index inside the char

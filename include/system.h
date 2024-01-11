@@ -15,7 +15,7 @@
 #define NUMBER_OF_SYSTEM_THREADS                 2
 
 #define BITS_PER_BYTE                            8
-#define BITMAP_CHUNK_SIZE                        (8 * BITS_PER_BYTE)
+#define BITMAP_CHUNK_SIZE                        (8)
 #define FULL_BITMAP_CHUNK                        ((ULONG64) - 1) // 0xFFFFFFFFFFFFFFFF
 #define PTE_REGION_SIZE                          256
 
@@ -35,8 +35,8 @@ extern PVOID modified_write_va;
 extern PVOID modified_read_va;
 extern PVOID repurpose_zero_va;
 extern PVOID disc_space;
-extern PULONG64 disc_in_use;
-extern PULONG64 disc_in_use_end;
+extern PUCHAR disc_in_use;
+extern PUCHAR disc_in_use_end;
 extern PPFN pfn_base;
 extern PPFN pfn_end;
 extern ULONG_PTR highest_frame_number;
