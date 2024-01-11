@@ -1,7 +1,6 @@
 #include "../include/debug.h"
 #include "../include/system.h"
 
-// TODO LM FIX make this work with a 64 bit ULONG64
 // This is very important, as it speeds this iteration up exponentially
 // This is because the CPU will now be able to check 64 spots instead of 8 (char size spots) in a single register
 ULONG64 get_disc_index(VOID)
@@ -67,36 +66,8 @@ BOOLEAN write_page_to_disc(VOID)
 {
     PPFN pfn;
     ULONG_PTR frame_number;
-    BOOLEAN took_modified_page = FALSE;
-    PPFN first_page;
 
-    while (took_modified_page == FALSE) {
-        // Peek at the head of the standby list
-        first_page = CONTAINING_RECORD(modified_page_list.entry.Flink, PFN, entry);
-        // Lock the pfn at the head
-        lock_pfn(first_page);
-        // Lock the list
-        EnterCriticalSection(&modified_page_list.lock);
-        if (modified_page_list.num_pages == 0)
-        {
-            LeaveCriticalSection(&modified_page_list.lock);
-            unlock_pfn(first_page);
-            return TRUE;
-        }
-
-        // If the frame numbers do not match up relinquish both locks and try again
-        if (CONTAINING_RECORD(modified_page_list.entry.Flink, PFN, entry) != first_page) {
-            LeaveCriticalSection(&modified_page_list.lock);
-            unlock_pfn(first_page);
-            continue;
-        }
-
-        // If the number's do match up, pop the page from the list
-        pfn = pop_from_list(&modified_page_list, TRUE);
-        // Relinquish lock for list
-        LeaveCriticalSection(&modified_page_list.lock);
-        took_modified_page = TRUE;
-    }
+    pfn = pop_from_list(&modified_page_list);
 
     frame_number = frame_number_from_pfn(pfn);
 
@@ -123,8 +94,7 @@ BOOLEAN write_page_to_disc(VOID)
 
         EnterCriticalSection(&modified_page_list.lock);
 
-        // LM FIX TODO we need to add back to the head
-        add_to_list(pfn, &modified_page_list, TRUE);
+        add_to_list_head(pfn, &modified_page_list);
 
         LeaveCriticalSection(&modified_page_list.lock);
 
@@ -159,7 +129,7 @@ BOOLEAN write_page_to_disc(VOID)
 
     EnterCriticalSection(&standby_page_list.lock);
 
-    add_to_list(pfn, &standby_page_list, TRUE);
+    add_to_list(pfn, &standby_page_list);
 
     LeaveCriticalSection(&standby_page_list.lock);
 

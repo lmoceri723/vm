@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <Windows.h>
 #include "../include/userapp.h"
+#include "../include/debug.h"
 
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "UnreachableCode"
@@ -75,6 +76,7 @@ VOID full_virtual_memory_test (VOID) {
                     {
                         DebugBreak();
                     }
+                    //assert(local == (ULONG_PTR) arbitrary_va)
                     num_reaccesses++;
                 }
                 else

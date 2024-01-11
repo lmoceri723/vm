@@ -73,8 +73,10 @@ extern VOID write_pte(PPTE pte, PTE pte_contents);
 extern PFN read_pfn(PPFN pfn);
 extern VOID write_pfn(PPFN pfn, PFN pfn_contents);
 
-extern VOID remove_from_list(PPFN pfn, BOOLEAN holds_locks);
-extern VOID add_to_list(PPFN pfn, PPFN_LIST listhead, BOOLEAN holds_locks);
-extern PPFN pop_from_list(PPFN_LIST listhead, BOOLEAN holds_locks);
+extern VOID remove_from_list(PPFN pfn);
+extern VOID add_to_list(PPFN pfn, PPFN_LIST listhead);
+extern VOID add_to_list_head(PPFN pfn, PPFN_LIST listhead);
+extern PPFN pop_from_list(PPFN_LIST listhead);
+extern PPFN pop_from_list_helper(PPFN_LIST listhead);
 
 #endif //VM_STRUCTS_H

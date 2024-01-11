@@ -76,15 +76,10 @@ ULONG64 frame_number_from_pfn(PPFN pfn)
 }
 
 // This removes the first element from a pfn list and returns it
-PPFN pop_from_list(PPFN_LIST listhead, BOOLEAN holds_locks)
+PPFN pop_from_list_helper(PPFN_LIST listhead)
 {
     PPFN pfn;
     PLIST_ENTRY flink_entry;
-
-    if (holds_locks == FALSE)
-    {
-        EnterCriticalSection(&listhead->lock);
-    }
 
     check_list_integrity(listhead, NULL);
 
@@ -95,25 +90,15 @@ PPFN pop_from_list(PPFN_LIST listhead, BOOLEAN holds_locks)
 
     check_list_integrity(listhead, NULL);
 
-    if (holds_locks == FALSE)
-    {
-        LeaveCriticalSection(&listhead->lock);
-    }
     return pfn;
 }
 
 // Removes the pfn from the list corresponding to its state
-VOID remove_from_list(PPFN pfn, BOOLEAN holds_locks)
+VOID remove_from_list(PPFN pfn)
 {
     PPFN_LIST listhead;
     PLIST_ENTRY prev_entry;
     PLIST_ENTRY next_entry;
-
-
-    // Takes the necessary locks if asked by the caller
-    if (holds_locks == FALSE) {
-        lock_pfn(pfn);
-    }
 
     // Finds the list based on the page's state
     if (pfn->flags.state == MODIFIED) {
@@ -132,11 +117,6 @@ VOID remove_from_list(PPFN pfn, BOOLEAN holds_locks)
         return;
     }
 
-    if (holds_locks == FALSE)
-    {
-        EnterCriticalSection(&listhead->lock);
-    }
-
     // Checks the integrity of the list before and after the remove operation
     check_list_integrity(listhead, pfn);
 
@@ -153,34 +133,61 @@ VOID remove_from_list(PPFN pfn, BOOLEAN holds_locks)
     listhead->num_pages--;
 
     check_list_integrity(listhead, NULL);
+}
 
-    if (holds_locks == FALSE)
-    {
+// Returns a locked page
+PPFN pop_from_list(PPFN_LIST listhead)
+{
+    BOOLEAN took_page = FALSE;
+    PPFN peeked_page;
+    PPFN taken_page;
+
+    while (took_page == FALSE) {
+        // Peek at the head of the list
+        peeked_page = CONTAINING_RECORD(listhead->entry.Flink, PFN, entry);
+        // Lock the pfn at the head
+        lock_pfn(peeked_page);
+        // Lock the list
+        EnterCriticalSection(&listhead->lock);
+
+        if (listhead->num_pages == 0)
+        {
+            DebugBreak();
+        }
+        // If the frame numbers do not match up relinquish both locks and try again
+        if (CONTAINING_RECORD(listhead->entry.Flink, PFN, entry) != peeked_page) {
+            LeaveCriticalSection(&listhead->lock);
+            unlock_pfn(peeked_page);
+            continue;
+        }
+
+        // If the number's do match up, pop the page from the list
+        taken_page = pop_from_list_helper(listhead);
+        // Relinquish lock for list
         LeaveCriticalSection(&listhead->lock);
-        unlock_pfn(pfn);
+        took_page = TRUE;
     }
+
+    return taken_page;
 }
 
 // This function simply adds a pfn to a specified list
-VOID add_to_list(PPFN pfn, PPFN_LIST listhead, BOOLEAN holds_locks) {
-
-    // Takes the necessary locks if asked by the caller
-    if (holds_locks == FALSE) {
-        lock_pfn(pfn);
-        EnterCriticalSection(&listhead->lock);
-    }
-
+VOID add_to_list(PPFN pfn, PPFN_LIST listhead) {
     // Inserts it on the list, checking the integrity of it before and after
     check_list_integrity(listhead, NULL);
     InsertTailList(&listhead->entry, &pfn->entry);
     listhead->num_pages++;
     check_list_integrity(listhead, pfn);
-
-    if (holds_locks == FALSE) {
-        LeaveCriticalSection(&listhead->lock);
-        unlock_pfn(pfn);
-    }
 }
+
+VOID add_to_list_head(PPFN pfn, PPFN_LIST listhead) {
+    // Inserts it on the list, checking the integrity of it before and after
+    check_list_integrity(listhead, NULL);
+    InsertHeadList(&listhead->entry, &pfn->entry);
+    listhead->num_pages++;
+    check_list_integrity(listhead, pfn);
+}
+
 
 #if 0
 VOID log_pte_write(PTE initial, PTE new)

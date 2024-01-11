@@ -51,7 +51,7 @@ void trim(PPTE pte)
     // Add the page to the modified list
     EnterCriticalSection(&modified_page_list.lock);
 
-    add_to_list(pfn, &modified_page_list, TRUE);
+    add_to_list(pfn, &modified_page_list);
 
     LeaveCriticalSection(&modified_page_list.lock);
 

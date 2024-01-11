@@ -6,9 +6,9 @@
 #include "../include/debug.h"
 
 #pragma comment(lib, "advapi32.lib")
-// TODO LM FIX FIGURE OUT ATTRIBUTE UNUSED AND FIX OTHER WARNINGS
+// LM FIX FIGURE OUT ATTRIBUTE UNUSED AND FIX OTHER WARNINGS
 // TODO LM FIX ENSURE ALL PTE AND PFN WRITES ARE DONE WITH OUR NEW METHOD
-// TODO LM FIX ADD SAFE REMOVALS FROM LIST TO POP_FROM_LIST AND REMOVE HOLDS_LOCKS
+
 
 PPFN get_free_page(VOID);
 PPFN read_page_on_disc(PPTE pte, PPFN free_page);
@@ -38,8 +38,6 @@ VOID fatal_error(VOID)
 // This is how we get pages for new virtual addresses as well as old ones only exist on the paging file
 PPFN get_free_page(VOID) {
     PPFN free_page = NULL;
-    BOOLEAN took_standby_page = FALSE;
-    PPFN first_page;
 
     // This first check is done without a lock on the free page list
     // This is because the list is empty for the majority of the program's duration
@@ -50,7 +48,8 @@ PPFN get_free_page(VOID) {
         // This check actually verifies that the list is empty
         if (free_page_list.num_pages != 0) {
             // Once we allow users to free memory, we will need to zero this too
-            free_page = pop_from_list(&free_page_list, TRUE);
+            // LM Future FIX figure out why running the non-helper method breaks this
+            free_page = pop_from_list_helper(&free_page_list);
             lock_pfn(free_page);
             assert(free_page->flags.state == FREE)
         }
@@ -61,28 +60,11 @@ PPFN get_free_page(VOID) {
     // Also because we do not want to use our last resort option unless absolutely necessary
 
     // This is where we take pages from the standby list and reallocate their physical pages for our new va to use
-    if (free_page == NULL && standby_page_list.num_pages != 0) {
-        // Lock the page at the head of the list
-        while (took_standby_page == FALSE) {
-            // Peek at the head of the standby list
-            first_page = CONTAINING_RECORD(standby_page_list.entry.Flink, PFN, entry);
-            // Lock the pfn at the head
-            lock_pfn(first_page);
-            // Lock the list
-            EnterCriticalSection(&standby_page_list.lock);
-
-            // If the frame numbers do not match up relinquish both locks and try again
-            if (CONTAINING_RECORD(standby_page_list.entry.Flink, PFN, entry) != first_page) {
-                LeaveCriticalSection(&standby_page_list.lock);
-                unlock_pfn(first_page);
-                continue;
-            }
-
-            // If the number's do match up, pop the page from the list
-            free_page = pop_from_list(&standby_page_list, TRUE);
-            // Relinquish lock for list
-            LeaveCriticalSection(&standby_page_list.lock);
-            took_standby_page = TRUE;
+    if (free_page == NULL && standby_page_list.num_pages != 0)
+    {
+        free_page = pop_from_list(&standby_page_list);
+        if (free_page == NULL) {
+            fatal_error();
         }
 
         PPTE other_pte = free_page->pte;
@@ -154,7 +136,6 @@ PPFN read_page_on_disc(PPTE pte, PPFN free_page)
     return free_page;
 }
 
-// TODO also make this work with a 64 bit ULONG64
 VOID free_disc_space(ULONG64 disc_index)
 {
     PUCHAR disc_spot;
@@ -310,13 +291,13 @@ VOID page_fault_handler(PVOID arbitrary_va)
 
         if (pfn->flags.state == MODIFIED) {
             EnterCriticalSection(&modified_page_list.lock);
-            remove_from_list(pfn, TRUE);
+            remove_from_list(pfn);
             LeaveCriticalSection(&modified_page_list.lock);
 
         } else /*(pfn->flags.state == STANDBY) */{
 
             EnterCriticalSection(&standby_page_list.lock);
-            remove_from_list(pfn, TRUE);
+            remove_from_list(pfn);
             // Freeing the space here and updating the pfn lower down
             free_disc_space(pfn->disc_index);
             LeaveCriticalSection(&standby_page_list.lock);
