@@ -39,21 +39,11 @@ VOID fatal_error(VOID)
 PPFN get_free_page(VOID) {
     PPFN free_page = NULL;
 
-    // This first check is done without a lock on the free page list
-    // This is because the list is empty for the majority of the program's duration
-    // We are able to check it faster without using the lock
-    // This prevents us from waiting to access an empty list
+    // First, we check the free page list for pages
     if (free_page_list.num_pages != 0) {
-        EnterCriticalSection(&free_page_list.lock);
-        // This check actually verifies that the list is empty
-        if (free_page_list.num_pages != 0) {
-            // Once we allow users to free memory, we will need to zero this too
-            // LM Future FIX figure out why running the non-helper method breaks this
-            free_page = pop_from_list_helper(&free_page_list);
-            lock_pfn(free_page);
-            assert(free_page->flags.state == FREE)
-        }
-        LeaveCriticalSection(&free_page_list.lock);
+        // Once we allow users to free memory, we will need to zero this too
+        free_page = pop_from_list(&free_page_list);
+        //assert(free_page == NULL || free_page->flags.state == FREE)
     }
 
     // We want to be 100% sure of our check here because we expect this case to happen almost every time

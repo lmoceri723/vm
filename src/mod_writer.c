@@ -68,6 +68,10 @@ BOOLEAN write_page_to_disc(VOID)
     ULONG_PTR frame_number;
 
     pfn = pop_from_list(&modified_page_list);
+    if (pfn == NULL)
+    {
+        return FALSE;
+    }
 
     frame_number = frame_number_from_pfn(pfn);
 

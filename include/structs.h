@@ -77,6 +77,5 @@ extern VOID remove_from_list(PPFN pfn);
 extern VOID add_to_list(PPFN pfn, PPFN_LIST listhead);
 extern VOID add_to_list_head(PPFN pfn, PPFN_LIST listhead);
 extern PPFN pop_from_list(PPFN_LIST listhead);
-extern PPFN pop_from_list_helper(PPFN_LIST listhead);
 
 #endif //VM_STRUCTS_H

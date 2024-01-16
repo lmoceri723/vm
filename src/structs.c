@@ -75,24 +75,6 @@ ULONG64 frame_number_from_pfn(PPFN pfn)
     return pfn - pfn_base;
 }
 
-// This removes the first element from a pfn list and returns it
-PPFN pop_from_list_helper(PPFN_LIST listhead)
-{
-    PPFN pfn;
-    PLIST_ENTRY flink_entry;
-
-    check_list_integrity(listhead, NULL);
-
-    flink_entry = RemoveHeadList(&listhead->entry);
-    pfn = CONTAINING_RECORD(flink_entry, PFN, entry);
-
-    listhead->num_pages--;
-
-    check_list_integrity(listhead, NULL);
-
-    return pfn;
-}
-
 // Removes the pfn from the list corresponding to its state
 VOID remove_from_list(PPFN pfn)
 {
@@ -135,6 +117,24 @@ VOID remove_from_list(PPFN pfn)
     check_list_integrity(listhead, NULL);
 }
 
+// This removes the first element from a pfn list and returns it
+PPFN pop_from_list_helper(PPFN_LIST listhead)
+{
+    PPFN pfn;
+    PLIST_ENTRY flink_entry;
+
+    check_list_integrity(listhead, NULL);
+
+    flink_entry = RemoveHeadList(&listhead->entry);
+    pfn = CONTAINING_RECORD(flink_entry, PFN, entry);
+
+    listhead->num_pages--;
+
+    check_list_integrity(listhead, NULL);
+
+    return pfn;
+}
+
 // Returns a locked page
 PPFN pop_from_list(PPFN_LIST listhead)
 {
@@ -152,7 +152,9 @@ PPFN pop_from_list(PPFN_LIST listhead)
 
         if (listhead->num_pages == 0)
         {
-            DebugBreak();
+            LeaveCriticalSection(&listhead->lock);
+            unlock_pfn(peeked_page);
+            return NULL;
         }
         // If the frame numbers do not match up relinquish both locks and try again
         if (CONTAINING_RECORD(listhead->entry.Flink, PFN, entry) != peeked_page) {
