@@ -6,9 +6,26 @@
 #include "../include/debug.h"
 
 #pragma comment(lib, "advapi32.lib")
-// LM FIX FIGURE OUT ATTRIBUTE UNUSED AND FIX OTHER WARNINGS
-// TODO LM FIX ENSURE ALL PTE AND PFN WRITES ARE DONE WITH OUR NEW METHOD
+/* Small Changes */
+// TODO LM FIX IMPLEMENT NEW PTE AND PFN WRITE METHODS
+// TODO LM FIX IMPLEMENT NEW NULL SECURITY CHECK METHOD
+// TODO LM FIX IMPLEMENT NEW MAP PAGES METHOD
+// TODO LM FIX IMPLEMENT FATAL ERROR WITH MESSAGES
+// TODO LM FIX ENSURE STYLE AND CONSISTENT NAMING
 
+/* Medium Changes */
+// LM FIX FIX BITMAP
+// LM FIX IMPLEMENT AGING CHANGES
+// LM FIX IMPLEMENT ONE BIT LOCKS
+
+/* Large Scale Changes */
+// LM FUTURE FIX IMPLEMENT LOCKS FOR ALL SYSTEM VAS
+// LM FUTURE FIX IMPLEMENT NEW THREAD ACTIVATION METHOD
+// LM FUTURE FIX IMPLEMENT MULTIPLE FAULTING/TRIMMING/AGING THREADS
+// LM FUTURE FIX IMPLEMENT API AND FREEING MEMORY
+// LM FUTURE FIX IMPROVE THE SCALABILITY OF THIS PROGRAM TO HANDLE MORE MEMORY
+// LM FUTURE FIX IMPLEMENT A REAL DISC DRIVER
+// LM FUTURE FIX COME UP WITH A BETTER WAY TO AGE PAGES
 
 PPFN get_free_page(VOID);
 PPFN read_page_on_disc(PPTE pte, PPFN free_page);
@@ -25,16 +42,6 @@ PVOID disc_space;
 PUCHAR disc_in_use;
 PUCHAR disc_in_use_end;
 
-// This breaks into the debugger if possible,
-// Otherwise it crashes the program
-// This is only done if our state machine is irreparably broken (or attacked)
-VOID fatal_error(VOID)
-{
-    printf("\n fatal error");
-    DebugBreak();
-    exit(1);
-}
-
 // This is how we get pages for new virtual addresses as well as old ones only exist on the paging file
 PPFN get_free_page(VOID) {
     PPFN free_page = NULL;
@@ -43,11 +50,8 @@ PPFN get_free_page(VOID) {
     if (free_page_list.num_pages != 0) {
         // Once we allow users to free memory, we will need to zero this too
         free_page = pop_from_list(&free_page_list);
-        //assert(free_page == NULL || free_page->flags.state == FREE)
+        assert(free_page == NULL || free_page->flags.state == FREE)
     }
-
-    // We want to be 100% sure of our check here because we expect this case to happen almost every time
-    // Also because we do not want to use our last resort option unless absolutely necessary
 
     // This is where we take pages from the standby list and reallocate their physical pages for our new va to use
     if (free_page == NULL && standby_page_list.num_pages != 0)
@@ -79,6 +83,7 @@ PPFN get_free_page(VOID) {
 
         memset(repurpose_zero_va, 0, PAGE_SIZE);
 
+        // Unmap the page from our va space
         if (MapUserPhysicalPages(repurpose_zero_va, 1, NULL) == FALSE) {
             printf("page_fault_handler : could not unmap VA %p to page %llu\n", repurpose_zero_va,
                    frame_number);
@@ -293,8 +298,8 @@ VOID page_fault_handler(PVOID arbitrary_va)
             LeaveCriticalSection(&standby_page_list.lock);
         }
     }
-    // We now have the page we need, we just need to correctly map it now to the pte and return
 
+    // We now have the page we need, we just need to correctly map it now to the pte and return
     pte_contents = read_pte(pte);
     pfn_contents = read_pfn(pfn);
     frame_number = frame_number_from_pfn(pfn);
@@ -335,6 +340,8 @@ PVOID allocate_memory(PULONG_PTR num_bytes)
 // Figure out attribute unused
 int main (int argc, char** argv)
 {
+    UNREFERENCED_PARAMETER(argc);
+    UNREFERENCED_PARAMETER(argv);
      /* This is where we initialize and test our virtual memory management state machine
 
      We control the entirety of virtual and physical memory management with only two exceptions

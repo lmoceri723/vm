@@ -6,6 +6,7 @@
 
 #define FREE 0
 #define STANDBY 1
+// The zeroed state is currently unimplemented
 //#define ZEROED 2
 #define MODIFIED 3
 #define ACTIVE 4
@@ -15,11 +16,12 @@
 #define NUMBER_OF_SYSTEM_THREADS                 2
 
 #define BITS_PER_BYTE                            8
-#define BITMAP_CHUNK_SIZE                        (8)
-#define FULL_BITMAP_CHUNK                        ((ULONG64) - 1) // 0xFFFFFFFFFFFFFFFF
+#define BITMAP_CHUNK_SIZE                        8
+#define MAX_ULONG64                              ((ULONG64) - 1) // 0xFFFFFFFFFFFFFFFF
+#define FULL_BITMAP_CHUNK                        MAX_ULONG64
 #define PTE_REGION_SIZE                          256
 
-// In this system this evaluates to 17
+// With a region size of 256, we have 1MB of virtual memory per region
 #define NUMBER_OF_PTE_REGIONS                    ((NUMBER_OF_PHYSICAL_PAGES + NUMBER_OF_DISC_PAGES) / PTE_REGION_SIZE)
 
 extern ULONG_PTR physical_page_count;
@@ -47,15 +49,12 @@ extern HANDLE pages_available_event;
 extern HANDLE disc_spot_available_event;
 extern HANDLE system_exit_event;
 
-extern CRITICAL_SECTION pte_lock;
-extern CRITICAL_SECTION pfn_lock;
 extern CRITICAL_SECTION pte_region_locks[NUMBER_OF_PTE_REGIONS];
 extern CRITICAL_SECTION disc_in_use_lock;
 
 extern DWORD modified_write_thread(PVOID context);
 extern DWORD trim_thread(PVOID context);
 
-extern VOID fatal_error(VOID);
 extern VOID initialize_system(VOID);
 extern VOID deinitialize_system(VOID);
 extern VOID full_virtual_memory_test(VOID);

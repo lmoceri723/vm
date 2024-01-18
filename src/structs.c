@@ -81,8 +81,11 @@ VOID remove_from_list(PPFN pfn)
     PPFN_LIST listhead;
     PLIST_ENTRY prev_entry;
     PLIST_ENTRY next_entry;
+    PFN local;
 
     // Finds the list based on the page's state
+    // There is no active state, and we never remove free pages in this way
+    // So we know that this is either a modified or standby page
     if (pfn->flags.state == MODIFIED) {
 
         listhead = &modified_page_list;
@@ -94,7 +97,7 @@ VOID remove_from_list(PPFN pfn)
 
     } else {
 
-        printf("Tried to remove a page from list when it was on none");
+        printf("remove_from_list : tried to remove a page from list when it was on none");
         fatal_error();
         return;
     }
@@ -102,15 +105,19 @@ VOID remove_from_list(PPFN pfn)
     // Checks the integrity of the list before and after the remove operation
     check_list_integrity(listhead, pfn);
 
+    local = read_pfn(pfn);
+
     // This removes the page from the list by erasing it from the chain of FLinks and blinks
-    prev_entry = pfn->entry.Blink;
-    next_entry = pfn->entry.Flink;
+    prev_entry = local.entry.Blink;
+    next_entry = local.entry.Flink;
 
     prev_entry->Flink = next_entry;
     next_entry->Blink = prev_entry;
 
-    pfn->entry.Flink = NULL;
-    pfn->entry.Blink = NULL;
+    local.entry.Flink = NULL;
+    local.entry.Blink = NULL;
+
+    write_pfn(pfn, local);
 
     listhead->num_pages--;
 
@@ -123,6 +130,7 @@ PPFN pop_from_list_helper(PPFN_LIST listhead)
     PPFN pfn;
     PLIST_ENTRY flink_entry;
 
+    // Checks the integrity of the list before and after the remove operation
     check_list_integrity(listhead, NULL);
 
     flink_entry = RemoveHeadList(&listhead->entry);
@@ -150,20 +158,22 @@ PPFN pop_from_list(PPFN_LIST listhead)
         // Lock the list
         EnterCriticalSection(&listhead->lock);
 
+        // If the list is empty, relinquish both locks and return
         if (listhead->num_pages == 0)
         {
             LeaveCriticalSection(&listhead->lock);
             unlock_pfn(peeked_page);
             return NULL;
         }
-        // If the frame numbers do not match up relinquish both locks and try again
+
+        // If the pages do not match up relinquish both locks and try again
         if (CONTAINING_RECORD(listhead->entry.Flink, PFN, entry) != peeked_page) {
             LeaveCriticalSection(&listhead->lock);
             unlock_pfn(peeked_page);
             continue;
         }
 
-        // If the number's do match up, pop the page from the list
+        // If the pages do match up, pop the page from the list
         taken_page = pop_from_list_helper(listhead);
         // Relinquish lock for list
         LeaveCriticalSection(&listhead->lock);
@@ -173,7 +183,7 @@ PPFN pop_from_list(PPFN_LIST listhead)
     return taken_page;
 }
 
-// This function simply adds a pfn to a specified list
+// This function simply adds a page to a specified list
 VOID add_to_list(PPFN pfn, PPFN_LIST listhead) {
     // Inserts it on the list, checking the integrity of it before and after
     check_list_integrity(listhead, NULL);
@@ -182,14 +192,13 @@ VOID add_to_list(PPFN pfn, PPFN_LIST listhead) {
     check_list_integrity(listhead, pfn);
 }
 
+// This function is used to re-add a page to the head of a list
 VOID add_to_list_head(PPFN pfn, PPFN_LIST listhead) {
-    // Inserts it on the list, checking the integrity of it before and after
     check_list_integrity(listhead, NULL);
     InsertHeadList(&listhead->entry, &pfn->entry);
     listhead->num_pages++;
     check_list_integrity(listhead, pfn);
 }
-
 
 #if 0
 VOID log_pte_write(PTE initial, PTE new)
@@ -202,6 +211,7 @@ VOID log_pfn_write(PFN initial, PFN new)
 
 }
 #endif
+
 PTE read_pte(PPTE pte)
 {
     // This atomically reads the pte as a single 64 bit value
@@ -223,6 +233,7 @@ VOID write_pte(PPTE pte, PTE local)
     *(volatile ULONG64 *) &pte->entire_format = local.entire_format;
 }
 
+// This strategy is not usable for PFNs because they are too large
 PFN read_pfn(PPFN pfn)
 {
     return *pfn;
@@ -230,11 +241,11 @@ PFN read_pfn(PPFN pfn)
 
 VOID write_pfn(PPFN pfn, PFN local)
 {
-    //log_pfn_write(*pfn, local);
     *pfn = local;
 }
 
-// Functions to lock and unlock pte regions and individual PFNs
+// Functions to lock and unlock PTE regions and individual PFNs
+// This locks the entire region of PTEs that the PTE is in
 VOID lock_pte(PPTE pte)
 {
     // We do not need to cast or multiply/divide by the size of a pte

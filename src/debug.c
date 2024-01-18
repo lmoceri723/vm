@@ -1,8 +1,7 @@
 #include "../include/debug.h"
 
-
 // Checks the integrity of a pfn list
-// This is very helpful to use when debugging but very expensive to do
+// This is very helpful to use when debugging but very expensive
 // This is done when a thread either acquires or is about to release a lock on a pfn list
 VOID check_list_integrity(PPFN_LIST listhead, PPFN match_pfn)
 {
@@ -66,5 +65,36 @@ VOID check_list_integrity(PPFN_LIST listhead, PPFN match_pfn)
     if (match_pfn != NULL && matched != 1) {
         DebugBreak();
     }
+#else
+    UNREFERENCED_PARAMETER(listhead);
+    UNREFERENCED_PARAMETER(match_pfn);
 #endif
+}
+
+// This breaks into the debugger if possible,
+// Otherwise it crashes the program
+// This is only done if our state machine is irreparably broken (or attacked)
+VOID fatal_error(VOID)
+{
+    printf("\n fatal error");
+    DebugBreak();
+    exit(1);
+}
+
+VOID map_pages(PVOID virtual_address, ULONG_PTR num_pages, PULONG_PTR page_array)
+{
+    if (MapUserPhysicalPages(virtual_address, num_pages, page_array) == FALSE) {
+
+        printf("map_pages : could not map VA %p to page %llX\n", virtual_address, page_array[0]);
+        fatal_error();
+    }
+}
+
+VOID unmap_pages(PVOID virtual_address, ULONG_PTR num_pages)
+{
+    if (MapUserPhysicalPages(virtual_address, num_pages, NULL) == FALSE) {
+
+        printf("unmap_pages : could not unmap VA %p to page %llX\n", virtual_address, num_pages);
+        fatal_error();
+    }
 }

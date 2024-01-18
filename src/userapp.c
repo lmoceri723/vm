@@ -3,15 +3,15 @@
 #include <Windows.h>
 #include "../include/userapp.h"
 #include "../include/debug.h"
-#include "../include/system.h"
 
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "UnreachableCode"
 #pragma comment(lib, "advapi32.lib")
 
 // This corresponds to how many times a random va will be written to in our test
+// We are using MB as a placeholder for 2^20 accesses inside of our space
+// MB has no reflection on the actual size of the memory we are using
 #define NUM_ADDRESSES MB(1) / 10
-
 
 ULONG64 fake_faults;
 ULONG64 num_faults;
@@ -56,8 +56,6 @@ VOID full_virtual_memory_test (VOID) {
         // (without faulting to the operating system again).
 
         // This computes a random virtual address within our range
-
-        // LM FUTURE FIX this is not a uniform distribution, also be wary of the max value of rand()
         random_number = rand(); // NOLINT(*-msc50-cpp)
         random_number %= virtual_address_size_in_pages;
         arbitrary_va = p + (random_number * PAGE_SIZE) / sizeof(ULONG_PTR);
@@ -68,9 +66,10 @@ VOID full_virtual_memory_test (VOID) {
         do {
             __try
             {
-                // We are trying to write the va as a number into the page contents associated with that va
+                // Here we read the value of the page contents associated with the VA
                 local = *arbitrary_va;
-                // This breaks into the debugger if the local value is not the same as the va
+                // This causes an error if the local value is not the same as the VA
+                // This means that we mixed up page contents between different VAs
                 if (local != 0)
                 {
                     if (local != (ULONG_PTR) arbitrary_va)
@@ -84,6 +83,7 @@ VOID full_virtual_memory_test (VOID) {
                     num_first_accesses++;
                 }
 
+                // We are trying to write the VA as a number into the page contents associated with that VA
                 *arbitrary_va = (ULONG_PTR) arbitrary_va;
                 page_faulted = FALSE;
             }
@@ -92,10 +92,14 @@ VOID full_virtual_memory_test (VOID) {
                 page_faulted = TRUE;
             }
 
+            // We call the page fault handler no matter what
+            // This is because we want to reset the age of a PTE when its VA is accessed
+            // This is done in the handler, as is referred to in this program as a fake fault
             page_fault_handler(arbitrary_va);
         } while (TRUE == page_faulted);
     }
 
+    // This gets the time elapsed in milliseconds
     end_time = GetTickCount();
     time_elapsed = end_time - start_time;
     printf("full_virtual_memory_test : finished accessing %d random virtual addresses in %lu ms (%f s)\n",

@@ -1,8 +1,7 @@
 #include "../include/debug.h"
 #include "../include/system.h"
 
-// This is very important, as it speeds this iteration up exponentially
-// This is because the CPU will now be able to check 64 spots instead of 8 (char size spots) in a single register
+// This gets the index to the first available spot on the paging file
 ULONG64 get_disc_index(VOID)
 {
     PUCHAR disc_spot;
@@ -61,11 +60,12 @@ ULONG64 get_disc_index(VOID)
     return (disc_spot - disc_in_use) * BITS_PER_BYTE + index_in_cluster;
 }
 
-// This function takes the first modified page and writes it to the disc
+// This function takes the first modified page and writes it to the paging file
 BOOLEAN write_page_to_disc(VOID)
 {
     PPFN pfn;
     ULONG_PTR frame_number;
+    ULONG64 disc_index;
 
     pfn = pop_from_list(&modified_page_list);
     if (pfn == NULL)
@@ -75,29 +75,20 @@ BOOLEAN write_page_to_disc(VOID)
 
     frame_number = frame_number_from_pfn(pfn);
 
-    // We need to map the page into our own va private space to copy its contents
-    if (MapUserPhysicalPages (modified_write_va, 1, &frame_number) == FALSE) {
+    // We need to map the page into our own private VA space to copy its contents
+    map_pages(modified_write_va, 1, &frame_number);
 
-        printf ("full_virtual_memory_test : could not map VA %p to page %llX\n", modified_write_va,
-                frame_number_from_pfn(pfn));
-        fatal_error();
-    }
-
-    ULONG64 disc_index = get_disc_index();
+    disc_index = get_disc_index();
 
     // At this point, we cannot get a disc index, so we put the page back on the modified list and wait for a spot
     // This is a last resort option, as we have to completely undo everything and try again
-    if (disc_index == FULL_BITMAP_CHUNK)
+    if (disc_index == MAX_ULONG64)
     {
-        if (MapUserPhysicalPages (modified_write_va, 1, NULL) == FALSE) {
-
-            printf ("full_virtual_memory_test : could not unmap VA %p to page %llX\n", modified_write_va,
-                    frame_number_from_pfn(pfn));
-            fatal_error();
-        }
+        unmap_pages(modified_write_va, 1);
 
         EnterCriticalSection(&modified_page_list.lock);
 
+        // We removed from the head of the list, so we want to add back at the head
         add_to_list_head(pfn, &modified_page_list);
 
         LeaveCriticalSection(&modified_page_list.lock);
@@ -111,23 +102,16 @@ BOOLEAN write_page_to_disc(VOID)
     // This computes the actual address of where we want to write the page contents in the paging file and copies it
     PVOID actual_space;
     actual_space = (PVOID) ((ULONG_PTR) disc_space + (disc_index * PAGE_SIZE));
-    //LM MULTITHREADING FIX this will be problematic, we need to have a lock on this va
+
     memcpy(actual_space, modified_write_va, PAGE_SIZE);
 
     // We can now unmap this from our va space as we have finished copying its contents to disc
-    if (MapUserPhysicalPages (modified_write_va, 1, NULL) == FALSE) {
+    unmap_pages(modified_write_va, 1);
 
-        printf ("full_virtual_memory_test : could not unmap VA %p to page %llX\n", modified_write_va,
-                frame_number_from_pfn(pfn));
-        fatal_error();
-    }
-
-
-    // Instead of storing this index in the pte, we store it in the pfn.
-    // We do this because we now have larger indexes and can therefore have a larger paging file.
-    // This works because we never have to access a disc index while accessing a frame number,
-    // And we always want to access a frame number over a disc index
-    // This allows us to extend the size of both variables instead of trying to cram them in a pte
+    // Instead of storing this index in the PTE, we store it in the PFN.
+    // We do this because a PTE is too small to hold both a disc index and a frame number.
+    // This works because we always want to access a frame number over a disc index
+    // This allows us to extend the size of both fields instead of trying to cram them together in a PTE
     pfn->disc_index = disc_index;
     pfn->flags.state = STANDBY;
 
@@ -149,6 +133,8 @@ BOOLEAN write_page_to_disc(VOID)
 // This controls the thread that constantly writes pages to disc when prompted by other threads
 DWORD modified_write_thread(PVOID context)
 {
+    UNREFERENCED_PARAMETER(context);
+
     // This thread needs to be able to react to handles for waking as well as exiting
     HANDLE handles[3];
 
@@ -167,13 +153,8 @@ DWORD modified_write_thread(PVOID context)
             break;
         }
 
-        /* The conditions that cause this to start running could become false
-        Between when it is marked as ready and ran
-        We always need to reevaluate this to see whether its actually needed
-        * This is not important to actually fix as we will rewrite this in the near future (see below) */
-
         // This is an arbitrary condition that prompts us to write to disc when we need to
-        // In the future we will give this thread a target of pages to write based on page demand
+        // In the future we will come up with a new algorithmic approach to doing this
         while (modified_page_list.num_pages >= physical_page_count / 4)
         {
             if (write_page_to_disc() == FALSE)
@@ -184,5 +165,6 @@ DWORD modified_write_thread(PVOID context)
     }
 
     // This function doesn't actually return anything as it runs infinitely throughout the duration of the program
+    // This return statement only exists to satisfy the API requirements for a thread starting function
     return 0;
 }

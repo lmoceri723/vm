@@ -4,9 +4,6 @@
 #include "../include/system.h"
 #include "../include/debug.h"
 
-
-
-
 // This function puts an individual page on the modified list given its PTE
 void trim(PPTE pte)
 {
@@ -63,11 +60,8 @@ void trim(PPTE pte)
 // This function ages PTEs by incrementing their age by 1
 // If the age is 7, then the page is trimmed
 // Their age is reset when they are accessed by a program
-
-// LM FUTURE FIX refine this by implementing the strategies below
-// Hop over pte regions, which will have both a bit-map and valid count / fancy skipping
-// 33 bytes
-// combine 0 and 256 by doing another read (try to see if 255 and 256 can be combined instead
+// This is a very simple aging algorithm that is not very effective
+// It is only used as a placeholder until a better algorithm is implemented
 VOID age_pages()
 {
     PPTE pte;
@@ -89,7 +83,6 @@ VOID age_pages()
             }
         }
         unlock_pte(pte);
-        // The compiler allows us to do this
         pte++;
     }
 }
@@ -97,6 +90,7 @@ VOID age_pages()
 // No functions get to call this, it must be invoked in its own thread context
 DWORD trim_thread(PVOID context) {
     // This parameter only exists to satisfy the API requirements for a thread starting function
+    UNREFERENCED_PARAMETER(context);
 
     // We wait on two handles here in order to react by terminating when the system exits
     // Or react by waking up and trimming pages if necessary
@@ -116,7 +110,8 @@ DWORD trim_thread(PVOID context) {
             break;
         }
 
-        // LM MULTITHREADING FIX we want to rewrite this to try and meet a target given to this thread based on previous demand
+        // This is an arbitrary condition that prompts us to trim pages when we need to
+        // In the future we will come up with a new algorithmic approach to doing this
         while (free_page_list.num_pages + standby_page_list.num_pages <= physical_page_count / 4
                && free_page_list.num_pages + standby_page_list.num_pages + modified_page_list.num_pages != physical_page_count)
         {

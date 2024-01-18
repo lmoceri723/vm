@@ -1,11 +1,10 @@
-//
-// Created by ltm14 on 11/15/2023.
-//
-
 #ifndef VM_DEBUG_H
 #define VM_DEBUG_H
 #include "structs.h"
 
+#define NULL_CHECK(x, msg)       if (x == NULL) {fatal_error(); }
+
+// Creates a central switch to turn debug mode on/off
 #if 0
 #define DBG                TRUE
 #endif
@@ -17,5 +16,8 @@
 #endif
 
 extern VOID check_list_integrity(PPFN_LIST listhead, PPFN match_pfn);
+extern VOID fatal_error(VOID);
+extern VOID map_pages(PVOID user_va, ULONG_PTR page_count, PULONG_PTR page_array);
+extern VOID unmap_pages(PVOID user_va, ULONG_PTR page_count);
 
 #endif //VM_DEBUG_H

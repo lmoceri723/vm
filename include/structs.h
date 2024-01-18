@@ -6,22 +6,22 @@
 #include <Windows.h>
 
 #define PAGE_SIZE                   4096
-//#define MB(x)                       ((x) * 1024 * 1024)
 
+// We know that a PTE is in valid format if the valid bit is set
 typedef struct {
     ULONG64 valid:1;
     ULONG64 frame_number:40;
     ULONG64 age:3;
 } VALID_PTE /*, *PVALID_PTE*/;
 
-// This could be a pte that is on disc or a pte that has never been accessed before
-// If on_disc is 0 AND disc index is zero, then we know it has never been accessed before
+// We know that a PTE is in disc format if the valid bit is not set and on_disc is set
 typedef struct {
     ULONG64 always_zero:1;
     ULONG64 disc_index:40;
     ULONG64 on_disc:1;
 } INVALID_PTE/*, *PINVALID_PTE*/;
 
+// We know that a PTE is in transition format if the valid bit is not set and on_disc is not set
 typedef struct {
     ULONG64 always_zero:1;
     ULONG64 frame_number:40;
@@ -33,6 +33,8 @@ typedef struct {
         VALID_PTE memory_format;
         INVALID_PTE disc_format;
         TRANSITION_PTE transition_format;
+        // This is used to represent the entire format of a PTE as a number
+        // If this number is zero, then we know that the PTE has never been accessed
         ULONG64 entire_format;
     };
 } PTE, *PPTE;
@@ -40,7 +42,7 @@ typedef struct {
 typedef struct {
     // States are FREE, STANDBY, ZEROED (to be added), ACTIVE, and MODIFIED
     ULONG state:3;
-    // LM FUTURE FIX these locks can be made into single bits instead of massive CRITICAL_SECTIONS
+    // In the future, these locks will be made into single bits instead of massive CRITICAL_SECTIONS
     CRITICAL_SECTION lock;
 }PFN_FLAGS/*, *PPFN_FLAGS*/;
 

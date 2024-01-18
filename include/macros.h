@@ -1,5 +1,5 @@
-// Created by ltm14 on 7/12/2023.
-
+/* This file contains macros for manipulating doubly linked lists.
+ * The code for these macros was written by Microsoft. */
 #ifndef VM_MACROS_H
 #define VM_MACROS_H
 
