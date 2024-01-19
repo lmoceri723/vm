@@ -64,6 +64,7 @@ ULONG64 get_disc_index(VOID)
 BOOLEAN write_page_to_disc(VOID)
 {
     PPFN pfn;
+    PFN local;
     ULONG_PTR frame_number;
     ULONG64 disc_index;
 
@@ -112,8 +113,11 @@ BOOLEAN write_page_to_disc(VOID)
     // We do this because a PTE is too small to hold both a disc index and a frame number.
     // This works because we always want to access a frame number over a disc index
     // This allows us to extend the size of both fields instead of trying to cram them together in a PTE
-    pfn->disc_index = disc_index;
-    pfn->flags.state = STANDBY;
+
+    local = read_pfn(pfn);
+    local.disc_index = disc_index;
+    local.flags.state = STANDBY;
+    write_pfn(pfn, local);
 
     EnterCriticalSection(&standby_page_list.lock);
 

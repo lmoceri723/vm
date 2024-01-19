@@ -28,7 +28,7 @@ void trim(PPTE pte)
     old_pte_contents = read_pte(pte);
     assert(old_pte_contents.memory_format.valid == 1)
 
-    // The pte is zeroed out here to ensure no stale data remains
+    // The PTE is zeroed out here to ensure no stale data remains
     new_pte_contents.entire_format = 0;
     new_pte_contents.transition_format.frame_number = old_pte_contents.memory_format.frame_number;
     write_pte(pte, new_pte_contents);

@@ -4,13 +4,8 @@
 #include "../include/system.h"
 #include "../include/debug.h"
 
-#pragma comment(lib, "advapi32.lib")
-/* Small Changes */
-// TODO LM FIX IMPLEMENT NEW PTE AND PFN WRITE METHODS
-
 /* Medium Changes */
-// LM FIX FIX BITMAP
-// LM FIX IMPLEMENT AGING CHANGES
+// LM FIX CHANGE BITMAP CHUNK SIZE TO 64 BITS
 // LM FIX IMPLEMENT ONE BIT LOCKS
 
 /* Large Scale Changes */

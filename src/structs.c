@@ -213,21 +213,20 @@ VOID log_pfn_write(PFN initial, PFN new)
 }
 #endif
 
+// These functions are used to read and write PTEs and PFNs in a way that doesn't conflict with other threads
 PTE read_pte(PPTE pte)
 {
-    // This atomically reads the pte as a single 64 bit value
-    // This is needed because the cpu or another concurrent faulting thread
-    // Can still access this pte in transition format and see an intermediate state
+    // This atomically reads the PTE as a single 64 bit value
+    // This is needed because the CPU or another concurrent faulting thread
+    // Can still access this PTE in transition format and see an intermediate state
     PTE local;
     local.entire_format = *(volatile ULONG64 *) &pte->entire_format;
     return local;
 }
 
-// Write the value of a local pte to a pte in memory
+// Write the value of a local PTE to a PTE in memory
 VOID write_pte(PPTE pte, PTE local)
 {
-    //log_pte_write(*pte, local);
-
     // Now this is written as a single 64 bit value instead of in parts
     // This is needed because the cpu or another concurrent faulting thread
     // Can still access this pte in transition format and see an intermediate state

@@ -195,7 +195,7 @@ VOID initialize_system_va_space(VOID)
 }
 
 // This function initializes our virtual address space
-VOID initialize_va_space(VOID)
+VOID initialize_user_va_space(VOID)
 {
     // Reserve a user address space region using the Windows kernel AWE (address windowing extensions) APIs
     // This will let us connect physical pages of our choosing to any given virtual address within our allocated region
@@ -210,7 +210,7 @@ VOID initialize_va_space(VOID)
 
     va_base = VirtualAlloc(NULL, virtual_address_size,MEM_RESERVE | MEM_PHYSICAL,
                            PAGE_READWRITE);
-    NULL_CHECK(va_base, "initialize_va_space : could not reserve memory for va space")
+    NULL_CHECK(va_base, "initialize_user_va_space : could not reserve memory for va space")
 }
 
 // This function initializes the PTEs that we use to map virtual addresses to physical pages
@@ -326,7 +326,7 @@ VOID initialize_system (VOID) {
 
     initialize_page_file(NUMBER_OF_DISC_PAGES * PAGE_SIZE);
 
-    initialize_va_space();
+    initialize_user_va_space();
 
     initialize_system_va_space();
 

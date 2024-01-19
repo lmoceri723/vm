@@ -87,7 +87,6 @@ VOID fatal_error(char *msg)
 VOID map_pages(PVOID virtual_address, ULONG_PTR num_pages, PULONG_PTR page_array)
 {
     if (MapUserPhysicalPages(virtual_address, num_pages, page_array) == FALSE) {
-
         printf("map_pages : could not map VA %p to page %llX\n", virtual_address, page_array[0]);
         fatal_error(NULL);
     }
@@ -96,7 +95,6 @@ VOID map_pages(PVOID virtual_address, ULONG_PTR num_pages, PULONG_PTR page_array
 VOID unmap_pages(PVOID virtual_address, ULONG_PTR num_pages)
 {
     if (MapUserPhysicalPages(virtual_address, num_pages, NULL) == FALSE) {
-
         printf("unmap_pages : could not unmap VA %p to page %llX\n", virtual_address, num_pages);
         fatal_error(NULL);
     }

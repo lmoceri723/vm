@@ -9,7 +9,8 @@
 #pragma comment(lib, "advapi32.lib")
 
 // This corresponds to how many times a random va will be written to in our test
-// We are using MB as a placeholder for 2^20 accesses inside of our space
+// We are using MB(x) as a placeholder for 2^20, the purpose of this is just to get a large number
+// This number represents the number of times we will access a random virtual address in our range
 // MB has no reflection on the actual size of the memory we are using
 #define NUM_ADDRESSES MB(1) / 10
 
