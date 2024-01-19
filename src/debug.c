@@ -74,9 +74,12 @@ VOID check_list_integrity(PPFN_LIST listhead, PPFN match_pfn)
 // This breaks into the debugger if possible,
 // Otherwise it crashes the program
 // This is only done if our state machine is irreparably broken (or attacked)
-VOID fatal_error(VOID)
+VOID fatal_error(char *msg)
 {
-    printf("\n fatal error");
+    if (msg == NULL) {
+        msg = "";
+    }
+    printf("\n%s", msg);
     DebugBreak();
     exit(1);
 }
@@ -86,7 +89,7 @@ VOID map_pages(PVOID virtual_address, ULONG_PTR num_pages, PULONG_PTR page_array
     if (MapUserPhysicalPages(virtual_address, num_pages, page_array) == FALSE) {
 
         printf("map_pages : could not map VA %p to page %llX\n", virtual_address, page_array[0]);
-        fatal_error();
+        fatal_error(NULL);
     }
 }
 
@@ -95,6 +98,6 @@ VOID unmap_pages(PVOID virtual_address, ULONG_PTR num_pages)
     if (MapUserPhysicalPages(virtual_address, num_pages, NULL) == FALSE) {
 
         printf("unmap_pages : could not unmap VA %p to page %llX\n", virtual_address, num_pages);
-        fatal_error();
+        fatal_error(NULL);
     }
 }

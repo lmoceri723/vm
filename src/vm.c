@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include <Windows.h>
 #include <time.h>
 #include "../include/structs.h"
@@ -8,10 +7,6 @@
 #pragma comment(lib, "advapi32.lib")
 /* Small Changes */
 // TODO LM FIX IMPLEMENT NEW PTE AND PFN WRITE METHODS
-// TODO LM FIX IMPLEMENT NEW NULL SECURITY CHECK METHOD
-// TODO LM FIX IMPLEMENT NEW MAP PAGES METHOD
-// TODO LM FIX IMPLEMENT FATAL ERROR WITH MESSAGES
-// TODO LM FIX ENSURE STYLE AND CONSISTENT NAMING
 
 /* Medium Changes */
 // LM FIX FIX BITMAP
@@ -58,7 +53,8 @@ PPFN get_free_page(VOID) {
     {
         free_page = pop_from_list(&standby_page_list);
         if (free_page == NULL) {
-            fatal_error();
+            SetEvent(wake_aging_event);
+            return NULL;
         }
 
         PPTE other_pte = free_page->pte;
@@ -75,20 +71,12 @@ PPFN get_free_page(VOID) {
         // This is important as it can corrupt the new user's data if not entirely overwritten,
         // It also would allow a program to see another program's memory (HUGE SECURITY VIOLATION)
         ULONG_PTR frame_number = frame_number_from_pfn(free_page);
-        if (MapUserPhysicalPages(repurpose_zero_va, 1, &frame_number) == FALSE) {
-            printf("page_fault_handler : could not map VA %p to page %llu\n", repurpose_zero_va,
-                   frame_number);
-            fatal_error();
-        }
+        map_pages(repurpose_zero_va, 1, &frame_number);
 
         memset(repurpose_zero_va, 0, PAGE_SIZE);
 
         // Unmap the page from our va space
-        if (MapUserPhysicalPages(repurpose_zero_va, 1, NULL) == FALSE) {
-            printf("page_fault_handler : could not unmap VA %p to page %llu\n", repurpose_zero_va,
-                   frame_number);
-            fatal_error();
-        }
+        unmap_pages(repurpose_zero_va, 1);
     }
 
     // This is a last resort option when there are no available pages
@@ -108,23 +96,13 @@ PPFN read_page_on_disc(PPTE pte, PPFN free_page)
     ULONG_PTR frame_number = frame_number_from_pfn(free_page);
 
     // We map these pages into our own va space to write contents into them, and then put them back in user va space
-    if (MapUserPhysicalPages(modified_read_va, 1, &frame_number) == FALSE) {
-
-        printf ("full_virtual_memory_test : could not map VA %p to page %llX\n", modified_read_va,
-                frame_number_from_pfn(free_page));
-        fatal_error();
-    }
+    map_pages(modified_read_va, 1, &frame_number);
 
     // This would be a disc driver that does this read and write in a real operating system
     PVOID source = (PVOID) ((ULONG_PTR) disc_space + (pte->disc_format.disc_index * PAGE_SIZE));
     memcpy(modified_read_va, source, PAGE_SIZE);
 
-    if (MapUserPhysicalPages(modified_read_va, 1, NULL) == FALSE) {
-
-        printf ("full_virtual_memory_test : could not unmap VA %p to page %llX\n", modified_read_va,
-                frame_number_from_pfn(free_page));
-        fatal_error();
-    }
+    unmap_pages(modified_read_va, 1);
 
     // Set the bit at disc_index in disc in use to be 0 to reuse the disc spot
     free_disc_space(pte->disc_format.disc_index);
@@ -184,11 +162,7 @@ VOID page_fault_handler(PVOID arbitrary_va)
 
     // First, we need to get the actual pte corresponding to the va we faulted on
     pte = pte_from_va(arbitrary_va);
-    if (pte == NULL)
-    {
-        printf("page_fault_handler : cannot get pte from va");
-        fatal_error();
-    }
+    NULL_CHECK(pte, "page_fault_handler : could not get pte from va")
 
     // This order of operations is very important
     // A pte lock MUST sequentially come before a pfn lock
@@ -317,12 +291,7 @@ VOID page_fault_handler(PVOID arbitrary_va)
     // This is a Windows API call that confirms the changes we made with the OS
     // We have already mapped this va to this page on our side, but the OS also needs to do the same on its side
     // This is necessary as this is a user mode program
-    if (MapUserPhysicalPages(arbitrary_va, 1, &frame_number) == FALSE) {
-
-        printf("page_fault_handler : could not map VA %p to page %llX\n", arbitrary_va,
-               frame_number_from_pfn(pfn));
-        fatal_error();
-    }
+    map_pages(arbitrary_va, 1, &frame_number);
 
     unlock_pfn(pfn);
     unlock_pte(pte);

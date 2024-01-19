@@ -18,11 +18,12 @@ PFN_LIST standby_page_list;
 PPTE pte_from_va(PVOID virtual_address)
 {
     // Null and out of bounds checks done for security purposes
+    NULL_CHECK(virtual_address, "pte_from_va : virtual address is null")
+
     if ((ULONG_PTR) virtual_address > (ULONG_PTR) va_base + virtual_address_size
-        || virtual_address < va_base || virtual_address == NULL)
+        || virtual_address < va_base)
     {
-        printf("pte_from_va : virtual address is out of valid range");
-        fatal_error();
+        fatal_error("pte_from_va : virtual address is out of valid range");
     }
 
     // We can compute the difference between the first va and our va
@@ -37,10 +38,10 @@ PPTE pte_from_va(PVOID virtual_address)
 PVOID va_from_pte(PPTE pte)
 {
     // Same checks done for security purposes
-    if (pte == NULL || pte > pte_end || pte < pte_base)
+    NULL_CHECK(pte, "va_from_pte : pte is null")
+    if (pte > pte_end || pte < pte_base)
     {
-        printf("va_from_pte : pte is out of valid range");
-        fatal_error();
+        fatal_error("va_from_pte : pte is out of valid range");
     }
 
     // The same math is done here but in reverse
@@ -54,10 +55,11 @@ PVOID va_from_pte(PPTE pte)
 
 PPFN pfn_from_frame_number(ULONG64 frame_number)
 {
+    NULL_CHECK((void *) frame_number, "pfn_from_frame_number : frame number is null")
+
     if (frame_number > highest_frame_number || frame_number <= 0)
     {
-        printf("pfn_from_frame_number : frame number is out of valid range");
-        fatal_error();
+        fatal_error("pfn_from_frame_number : frame number is out of valid range");
     }
 
     // Again, the compiler implicitly multiplies frame number by PFN size
@@ -66,10 +68,11 @@ PPFN pfn_from_frame_number(ULONG64 frame_number)
 
 ULONG64 frame_number_from_pfn(PPFN pfn)
 {
-    if (pfn == NULL || pfn > pfn_end || pfn < pfn_base)
+    NULL_CHECK(pfn, "frame_number_from_pfn : pfn is null")
+
+    if (pfn > pfn_end || pfn < pfn_base)
     {
-        printf("frame_number_from_pfn : pfn is out of valid range");
-        fatal_error();
+        fatal_error("frame_number_from_pfn : pfn is out of valid range");
     }
 
     return pfn - pfn_base;
@@ -96,9 +99,7 @@ VOID remove_from_list(PPFN pfn)
         listhead = &standby_page_list;
 
     } else {
-
-        printf("remove_from_list : tried to remove a page from list when it was on none");
-        fatal_error();
+        fatal_error("remove_from_list : tried to remove a page from list when it was on none");
         return;
     }
 

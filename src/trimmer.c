@@ -18,19 +18,11 @@ void trim(PPTE pte)
     lock_pfn(pfn);
 
     user_va = va_from_pte(pte);
-    if (user_va == NULL)
-    {
-        printf("trim : could not get the va connected to the pte");
-        fatal_error();
-    }
+    NULL_CHECK(user_va, "trim : could not get the va connected to the pte")
 
     // The user VA is still mapped, we need to unmap it here to stop the user from changing it
     // Any attempt to modify this va will lead to a page fault so that we will not be able to have stale data
-    if (MapUserPhysicalPages (user_va, 1, NULL) == FALSE) {
-
-        printf ("trim : could not unmap VA %p to page %llX\n", user_va, frame_number_from_pfn(pfn));
-        fatal_error();
-    }
+    unmap_pages(user_va, 1);
 
     // This writes the new contents into the PTE and PFN
     old_pte_contents = read_pte(pte);

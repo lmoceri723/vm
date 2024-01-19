@@ -51,8 +51,7 @@ VOID GetPrivilege(VOID)
     Result = OpenProcessToken (hProcess,TOKEN_ADJUST_PRIVILEGES,&Token);
 
     if (Result == FALSE) {
-        printf ("get_privilege : cannot open process token.\n");
-        fatal_error();
+        fatal_error("get_privilege : cannot open process token.");
     }
 
     // Enable the privilege.
@@ -65,8 +64,7 @@ VOID GetPrivilege(VOID)
                                    &(Info.Privilege[0].Luid));
 
     if (Result == FALSE) {
-        printf ("get_privilege : cannot get privilege\n");
-        fatal_error();
+        fatal_error("get_privilege : cannot get privilege");
     }
 
     // Adjust the privilege and check the result
@@ -74,13 +72,12 @@ VOID GetPrivilege(VOID)
                                     0,NULL,NULL);
 
     if (Result == FALSE) {
-        printf ("get_privilege : cannot adjust token privileges %lu\n", GetLastError ());
-        fatal_error();
+        printf("get_privilege : cannot adjust token privileges %lu", GetLastError ());
+        fatal_error(NULL);
     }
 
     if (GetLastError () != ERROR_SUCCESS) {
-        printf ("get_privilege : cannot enable the SE_LOCK_MEMORY_NAME privilege - check local policy\n");
-         fatal_error();
+        fatal_error("get_privilege : cannot enable the SE_LOCK_MEMORY_NAME privilege - check local policy");
     }
 
     CloseHandle(Token);
@@ -105,39 +102,19 @@ VOID initialize_locks(VOID)
 VOID initialize_events(VOID)
 {
     wake_aging_event = CreateEvent(NULL, FALSE, FALSE, NULL);
-    if (wake_aging_event == NULL)
-    {
-        printf("initialize_events : could not initialize wake_aging_event");
-        fatal_error();
-    }
+    NULL_CHECK(wake_aging_event, "initialize_events : could not initialize wake_aging_event")
 
     modified_writing_event = CreateEvent(NULL, FALSE, FALSE, NULL);
-    if (modified_writing_event == NULL)
-    {
-        printf("initialize_events : could not initialize modified_writing_event");
-        fatal_error();
-    }
+    NULL_CHECK(modified_writing_event, "initialize_events : could not initialize modified_writing_event")
 
     pages_available_event = CreateEvent(NULL, FALSE, FALSE, NULL);
-    if (pages_available_event == NULL)
-    {
-        printf("initialize_events : could not initialize pages_available_event");
-        fatal_error();
-    }
+    NULL_CHECK(pages_available_event, "initialize_events : could not initialize pages_available_event")
 
     disc_spot_available_event = CreateEvent(NULL, FALSE, FALSE, NULL);
-    if (disc_spot_available_event == NULL)
-    {
-        printf("initialize_events : could not initialize disc_spot_available_event");
-        fatal_error();
-    }
+    NULL_CHECK(disc_spot_available_event, "initialize_events : could not initialize disc_spot_available_event")
 
     system_exit_event = CreateEvent(NULL, TRUE, FALSE, NULL);
-    if (system_exit_event == NULL)
-    {
-        printf("initialize_events : could not initialize pages_available_event");
-        fatal_error();
-    }
+    NULL_CHECK(system_exit_event, "initialize_events : could not initialize system_exit_event")
 }
 
 // This function initializes all of our threads. Once they are initialized, they immediately start running.
@@ -153,21 +130,13 @@ VOID initialize_threads(VOID)
     thread_handles = malloc(sizeof(HANDLE) * num_processors);
     thread_ids = malloc(sizeof(ULONG) * num_processors);
 
-    system_handles[0] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE) trim_thread,
-                 (LPVOID) (ULONG_PTR) 0, 0, &system_thread_ids[0]);
-    if (system_handles[0] == NULL)
-    {
-        printf("initialize_threads : could not initialize thread handle for trim_thread");
-        fatal_error();
-    }
+    system_handles[0] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)
+    trim_thread,(LPVOID) (ULONG_PTR) 0, 0, &system_thread_ids[0]);
+    NULL_CHECK(system_handles[0], "initialize_threads : could not initialize thread handle for trim_thread")
 
-    system_handles[1] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE) modified_write_thread,
-                 (LPVOID) (ULONG_PTR) 1, 0, &system_thread_ids[1]);
-    if (system_handles[1] == NULL)
-    {
-        printf("initialize_threads : could not initialize thread handle for modified_write_thread");
-        fatal_error();
-    }
+    system_handles[1] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)
+    modified_write_thread,(LPVOID) (ULONG_PTR) 1, 0, &system_thread_ids[1]);
+    NULL_CHECK(system_handles[1], "initialize_threads : could not initialize thread handle for modified_write_thread")
 
     UNREFERENCED_PARAMETER(thread_handles);
     UNREFERENCED_PARAMETER(thread_ids);
@@ -180,21 +149,13 @@ VOID initialize_page_file(ULONG64 bytes)
 {
     // Allocates the memory for the page file
     disc_space = malloc(bytes);
-    if (disc_space == NULL)
-    {
-        printf("create_page_file : could not allocate memory for disc space");
-        fatal_error();
-    }
+    NULL_CHECK(disc_space, "create_page_file : could not allocate memory for disc space")
 
     // Allocates the memory for the disc in use bitmap
     // This will remain in memory, as it is used to track which pages are in use and not part of the page file
     ULONG_PTR size = bytes / PAGE_SIZE / BITMAP_CHUNK_SIZE;
     disc_in_use = malloc(size);
-    if (disc_in_use == NULL)
-    {
-        printf("create_page_file : could not allocate memory for disc in use array");
-        fatal_error();
-    }
+    NULL_CHECK(disc_in_use, "create_page_file : could not allocate memory for disc in use array")
     memset(disc_in_use, 0, size);
 
     disc_in_use_end = disc_in_use + size;
@@ -220,35 +181,17 @@ VOID initialize_page_lists(VOID)
 // Or when we move a page from the page file to memory and vice versa
 VOID initialize_system_va_space(VOID)
 {
-    modified_write_va = VirtualAlloc(NULL,
-                                     PAGE_SIZE,
-                                     MEM_RESERVE | MEM_PHYSICAL,
+    modified_write_va = VirtualAlloc(NULL,PAGE_SIZE,MEM_RESERVE | MEM_PHYSICAL,
                                      PAGE_READWRITE);
+    NULL_CHECK(modified_write_va, "initialize_system_va_space : could not reserve memory for modified write va")
 
-    if (modified_write_va == NULL) {
-        printf("initialize_system_va_space : could not reserve memory for modified write va\n");
-        fatal_error();
-    }
-
-    modified_read_va = VirtualAlloc(NULL,
-                                    PAGE_SIZE,
-                                    MEM_RESERVE | MEM_PHYSICAL,
+    modified_read_va = VirtualAlloc(NULL,PAGE_SIZE,MEM_RESERVE | MEM_PHYSICAL,
                                     PAGE_READWRITE);
+    NULL_CHECK(modified_read_va, "initialize_system_va_space : could not reserve memory for modified read va")
 
-    if (modified_read_va == NULL) {
-        printf("initialize_system_va_space : could not reserve memory for modified write va\n");
-        fatal_error();
-    }
-
-    repurpose_zero_va = VirtualAlloc(NULL,
-                                    PAGE_SIZE,
-                                    MEM_RESERVE | MEM_PHYSICAL,
+    repurpose_zero_va = VirtualAlloc(NULL,PAGE_SIZE,MEM_RESERVE | MEM_PHYSICAL,
                                     PAGE_READWRITE);
-
-    if (repurpose_zero_va == NULL) {
-        printf("initialize_system_va_space : could not reserve memory for repurpose zero va\n");
-        fatal_error();
-    }
+    NULL_CHECK(repurpose_zero_va, "initialize_system_va_space : could not reserve memory for repurpose zero va")
 }
 
 // This function initializes our virtual address space
@@ -265,15 +208,9 @@ VOID initialize_va_space(VOID)
     // Uses bit operations instead of modulus to do this quicker
     virtual_address_size &= ~(PAGE_SIZE - 1);
 
-    va_base = VirtualAlloc(NULL,
-                           virtual_address_size,
-                           MEM_RESERVE | MEM_PHYSICAL,
+    va_base = VirtualAlloc(NULL, virtual_address_size,MEM_RESERVE | MEM_PHYSICAL,
                            PAGE_READWRITE);
-
-    if (va_base == NULL) {
-        printf("initialize_va_space : could not reserve memory for virtual addresses\n");
-        fatal_error();
-    }
+    NULL_CHECK(va_base, "initialize_va_space : could not reserve memory for va space")
 }
 
 // This function initializes the PTEs that we use to map virtual addresses to physical pages
@@ -281,7 +218,7 @@ VOID initialize_pte_metadata(VOID)
 {
     ULONG_PTR num_pte_bytes = virtual_address_size / PAGE_SIZE * sizeof(PTE);
     pte_base = malloc(num_pte_bytes);
-    NULL_CHECK(pte_base, "initialize_pte_metadata : could not allocate memory for pte metadata\n")
+    NULL_CHECK(pte_base, "initialize_pte_metadata : could not allocate memory for pte metadata")
 
     memset(pte_base, 0, num_pte_bytes);
 
@@ -303,11 +240,7 @@ VOID initialize_pfn_metadata(VOID)
     pfn_base = VirtualAlloc(NULL, highest_frame_number * sizeof(PFN),
                             MEM_RESERVE, PAGE_READWRITE);
     pfn_end = pfn_base + highest_frame_number * sizeof(PFN);
-
-    if (pfn_base == NULL) {
-        printf("initialize_pfn_metadata : could not reserve memory for pfn metadata\n");
-        fatal_error();
-    }
+    NULL_CHECK(pfn_base, "initialize_pfn_metadata : could not reserve memory for pfn metadata")
 
     PPFN pfn;
     ULONG_PTR frame_number;
@@ -326,10 +259,7 @@ VOID initialize_pfn_metadata(VOID)
                                      MEM_COMMIT, PAGE_READWRITE);
 
         // If we could not commit memory for the pfn, we need to exit
-        if (result == NULL) {
-            printf("initialize_pfn_metadata : could not commit memory for pfn %llu in pfn metadata\n", i);
-            fatal_error();
-        }
+        NULL_CHECK(result, "initialize_pfn_metadata : could not commit memory for pfn metadata")
 
         // Initializes the pfn
         memset(pfn_base + physical_page_numbers[i], 0, sizeof(PFN));
@@ -355,22 +285,16 @@ VOID initialize_pages()
 
     // We use this array to store all the frame numbers of every page we take
     physical_page_numbers = (PULONG_PTR) malloc(physical_page_count * sizeof(ULONG_PTR));
-
-    if (physical_page_numbers == NULL) {
-        printf("initialize_pages : could not allocate array to hold physical page numbers\n");
-        fatal_error();
-    }
+    NULL_CHECK(physical_page_numbers, "initialize_pages : could not allocate memory for physical page numbers")
 
     // This is where we actually allocate the pages of memory into our page pool
     if (AllocateUserPhysicalPages(physical_page_handle,&physical_page_count,
                                   physical_page_numbers) == FALSE) {
-        printf("initialize_pages : could not allocate physical pages\n");
-        fatal_error();
+        fatal_error("initialize_pages : could not allocate physical pages");
     }
 
     if (physical_page_count != NUMBER_OF_PHYSICAL_PAGES) {
-        printf("initialize_pages : allocated only %llu pages out of %u pages requested\n",
-               physical_page_count,
+        printf("initialize_pages : allocated only %llu pages out of %u pages requested", physical_page_count,
                NUMBER_OF_PHYSICAL_PAGES);
     }
 
@@ -410,7 +334,7 @@ VOID initialize_system (VOID) {
 
     initialize_threads();
 
-    printf("initialize_system : system successfully initialized\n");
+    printf("initialize_system : system successfully initialized");
 }
 
 // Terminates the program and gives all resources back to the operating system

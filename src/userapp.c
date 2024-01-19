@@ -74,7 +74,7 @@ VOID full_virtual_memory_test (VOID) {
                 {
                     if (local != (ULONG_PTR) arbitrary_va)
                     {
-                        fatal_error();
+                        fatal_error("full_virtual_memory_test : page contents are not the same as the VA");
                     }
                     num_reaccesses++;
                 }
