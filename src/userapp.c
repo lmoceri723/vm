@@ -20,7 +20,6 @@ ULONG64 num_faults;
 ULONG64 num_first_accesses;
 ULONG64 num_reaccesses;
 
-
 VOID full_virtual_memory_test (VOID) {
 
     PULONG_PTR arbitrary_va;
@@ -57,6 +56,7 @@ VOID full_virtual_memory_test (VOID) {
         // (without faulting to the operating system again).
 
         // This computes a random virtual address within our range
+        srand(GetCurrentThreadId());
         random_number = rand(); // NOLINT(*-msc50-cpp)
         random_number %= virtual_address_size_in_pages;
         arbitrary_va = p + (random_number * PAGE_SIZE) / sizeof(ULONG_PTR);
@@ -108,4 +108,21 @@ VOID full_virtual_memory_test (VOID) {
     printf("full_virtual_memory_test : took %llu faults and %llu fake faults\n", num_faults, fake_faults);
 }
 
+// This function controls a faulting thread
+DWORD faulting_thread(PVOID context)
+{
+    UNREFERENCED_PARAMETER(context);
+
+    // This thread needs to be able to react to handles for waking as well as exiting
+    HANDLE handles[4];
+
+    handles[0] = system_start_event;
+    handles[1] = system_exit_event;
+
+    WaitForSingleObject(system_start_event, INFINITE);
+
+    full_virtual_memory_test();
+
+    return 0;
+}
 #pragma clang diagnostic pop

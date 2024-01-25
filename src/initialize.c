@@ -6,20 +6,20 @@
 #include "../include/system.h"
 #include "../include/debug.h"
 
-
 #pragma comment(lib, "advapi32.lib")
 
 int compare(const void * a, const void * b);
 
 PULONG_PTR physical_page_numbers;
 
-// These are required to be initialized by the thread api, but they are not used currently
-PHANDLE thread_handles;
-PULONG thread_ids;
+// These are handles to our faulting threads
+HANDLE faulting_handles[NUMBER_OF_FAULTING_THREADS];
+ULONG faulting_thread_ids[NUMBER_OF_FAULTING_THREADS];
 
-// These are handles to our system threads, our faulting/trimming/modified-writing threads
+// These are handles to our system threads, our trimming/modified-writing threads
 HANDLE system_handles[NUMBER_OF_SYSTEM_THREADS];
 ULONG system_thread_ids[NUMBER_OF_SYSTEM_THREADS];
+
 HANDLE physical_page_handle;
 
 // These are handles to our events, which are used to signal between threads
@@ -28,10 +28,14 @@ HANDLE modified_writing_event;
 HANDLE pages_available_event;
 HANDLE disc_spot_available_event;
 HANDLE system_exit_event;
+HANDLE system_start_event;
 
 // These are the locks used in our system
 CRITICAL_SECTION pte_region_locks[NUMBER_OF_PTE_REGIONS];
 CRITICAL_SECTION disc_in_use_lock;
+CRITICAL_SECTION modified_write_va_lock;
+CRITICAL_SECTION modified_read_va_lock;
+CRITICAL_SECTION repurpose_zero_va_lock;
 
 // This is Windows-specific code to acquire a privilege.
 VOID GetPrivilege(VOID)
@@ -87,6 +91,9 @@ VOID GetPrivilege(VOID)
 VOID initialize_locks(VOID)
 {
     InitializeCriticalSection(&disc_in_use_lock);
+    InitializeCriticalSection(&modified_write_va_lock);
+    InitializeCriticalSection(&modified_read_va_lock);
+    InitializeCriticalSection(&repurpose_zero_va_lock);
 
     InitializeCriticalSection(&free_page_list.lock);
     InitializeCriticalSection(&standby_page_list.lock);
@@ -115,20 +122,28 @@ VOID initialize_events(VOID)
 
     system_exit_event = CreateEvent(NULL, TRUE, FALSE, NULL);
     NULL_CHECK(system_exit_event, "initialize_events : could not initialize system_exit_event")
+
+    system_start_event = CreateEvent(NULL, TRUE, FALSE, NULL);
+    NULL_CHECK(system_start_event, "initialize_events : could not initialize system_start_event")
 }
 
 // This function initializes all of our threads. Once they are initialized, they immediately start running.
 // For this reason, this needs to be our last step of initialization
 VOID initialize_threads(VOID)
 {
-    SYSTEM_INFO info;
-    ULONG num_processors;
+//    SYSTEM_INFO info;
+//    ULONG num_processors;
 
-    GetSystemInfo(&info);
-    num_processors = info.dwNumberOfProcessors;
+//    GetSystemInfo(&info);
+//    In my system, this is 16
+//    num_processors = info.dwNumberOfProcessors;
 
-    thread_handles = malloc(sizeof(HANDLE) * num_processors);
-    thread_ids = malloc(sizeof(ULONG) * num_processors);
+    for (ULONG i = 0; i < NUMBER_OF_FAULTING_THREADS; i++)
+    {
+        faulting_handles[i] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)
+        faulting_thread,(LPVOID) (ULONG_PTR) i, 0, &faulting_thread_ids[i]);
+        NULL_CHECK(faulting_handles[i], "initialize_threads : could not initialize thread handle for faulting_thread")
+    }
 
     system_handles[0] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)
     trim_thread,(LPVOID) (ULONG_PTR) 0, 0, &system_thread_ids[0]);
@@ -137,29 +152,34 @@ VOID initialize_threads(VOID)
     system_handles[1] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)
     modified_write_thread,(LPVOID) (ULONG_PTR) 1, 0, &system_thread_ids[1]);
     NULL_CHECK(system_handles[1], "initialize_threads : could not initialize thread handle for modified_write_thread")
-
-    UNREFERENCED_PARAMETER(thread_handles);
-    UNREFERENCED_PARAMETER(thread_ids);
 }
 
 // This creates our page file
 // Currently, we allocate a chunk of system memory to simulate a page file
 // In the future, we will incorporate a real page file
-VOID initialize_page_file(ULONG64 bytes)
+VOID initialize_page_file(ULONG64 num_disc_pages)
 {
+    ULONG64 page_file_size_in_bytes;
+    ULONG64 bitmap_size_in_bytes;
+
+    page_file_size_in_bytes = num_disc_pages * PAGE_SIZE;
     // Allocates the memory for the page file
-    disc_space = malloc(bytes);
+    disc_space = malloc(page_file_size_in_bytes);
     NULL_CHECK(disc_space, "create_page_file : could not allocate memory for disc space")
 
     // Allocates the memory for the disc in use bitmap
     // This will remain in memory, as it is used to track which pages are in use and not part of the page file
-    ULONG_PTR size = bytes / PAGE_SIZE / BITMAP_CHUNK_SIZE;
-    disc_in_use = malloc(size);
-    NULL_CHECK(disc_in_use, "create_page_file : could not allocate memory for disc in use array")
-    memset(disc_in_use, 0, size);
 
-    disc_in_use_end = disc_in_use + size;
-    disc_page_count = bytes / PAGE_SIZE;
+    // We want one bit per page, so our page file is num_disc_pages bits long
+    // We need this quantity in bytes to allocate memory for it, so we divide by BITS_PER_BYTE
+    bitmap_size_in_bytes = num_disc_pages / BITS_PER_BYTE;
+
+    disc_in_use = malloc(bitmap_size_in_bytes);
+    NULL_CHECK(disc_in_use, "create_page_file : could not allocate memory for disc in use array")
+    memset(disc_in_use, EMPTY_UNIT, bitmap_size_in_bytes);
+
+    disc_in_use_end = disc_in_use + bitmap_size_in_bytes;
+    disc_page_count = num_disc_pages;
 }
 
 // This function initializes our page lists
@@ -307,6 +327,15 @@ int compare (const void *a, const void *b) {
     return ( *(PULONG_PTR) a - *(PULONG_PTR) b );
 }
 
+VOID run_system(VOID)
+{
+    // This sets the event to start the system
+    SetEvent(system_start_event);
+
+    // This waits for the system to exit before proceeding
+    WaitForMultipleObjects(NUMBER_OF_FAULTING_THREADS, faulting_handles, TRUE, INFINITE);
+}
+
 // This function fully initializes our system
 VOID initialize_system (VOID) {
 
@@ -324,7 +353,7 @@ VOID initialize_system (VOID) {
 
     initialize_pfn_metadata();
 
-    initialize_page_file(NUMBER_OF_DISC_PAGES * PAGE_SIZE);
+    initialize_page_file(NUMBER_OF_DISC_PAGES);
 
     initialize_user_va_space();
 
@@ -334,7 +363,7 @@ VOID initialize_system (VOID) {
 
     initialize_threads();
 
-    printf("initialize_system : system successfully initialized");
+    printf("initialize_system : system successfully initialized\n");
 }
 
 // Terminates the program and gives all resources back to the operating system
@@ -358,4 +387,6 @@ VOID deinitialize_system (VOID)
     // We can also do the same for all of our pages
     FreeUserPhysicalPages(physical_page_handle,&physical_page_count,
                           physical_page_numbers);
+
+    printf("deinitialize_system : system successfully deinitialized\n");
 }

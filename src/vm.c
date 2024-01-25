@@ -29,8 +29,9 @@ PVOID modified_write_va;
 PVOID modified_read_va;
 PVOID repurpose_zero_va;
 PVOID disc_space;
-PUCHAR disc_in_use;
-PUCHAR disc_in_use_end;
+
+BITMAP_TYPE disc_in_use;
+BITMAP_TYPE disc_in_use_end;
 
 // This is how we get pages for new virtual addresses as well as old ones only exist on the paging file
 PPFN get_free_page(VOID) {
@@ -66,12 +67,17 @@ PPFN get_free_page(VOID) {
         // This is important as it can corrupt the new user's data if not entirely overwritten,
         // It also would allow a program to see another program's memory (HUGE SECURITY VIOLATION)
         ULONG_PTR frame_number = frame_number_from_pfn(free_page);
+
+        EnterCriticalSection(&repurpose_zero_va_lock);
+
         map_pages(repurpose_zero_va, 1, &frame_number);
 
         memset(repurpose_zero_va, 0, PAGE_SIZE);
 
         // Unmap the page from our va space
         unmap_pages(repurpose_zero_va, 1);
+
+        LeaveCriticalSection(&repurpose_zero_va_lock);
     }
 
     // This is a last resort option when there are no available pages
@@ -90,6 +96,8 @@ PPFN read_page_on_disc(PPTE pte, PPFN free_page)
     // And therefore is not visible to any other threads
     ULONG_PTR frame_number = frame_number_from_pfn(free_page);
 
+    EnterCriticalSection(&modified_read_va_lock);
+
     // We map these pages into our own va space to write contents into them, and then put them back in user va space
     map_pages(modified_read_va, 1, &frame_number);
 
@@ -99,6 +107,8 @@ PPFN read_page_on_disc(PPTE pte, PPFN free_page)
 
     unmap_pages(modified_read_va, 1);
 
+    LeaveCriticalSection(&modified_read_va_lock);
+
     // Set the bit at disc_index in disc in use to be 0 to reuse the disc spot
     free_disc_space(pte->disc_format.disc_index);
     return free_page;
@@ -106,18 +116,18 @@ PPFN read_page_on_disc(PPTE pte, PPFN free_page)
 
 VOID free_disc_space(ULONG64 disc_index)
 {
-    PUCHAR disc_spot;
-    UCHAR spot_cluster;
-    ULONG index_in_cluster;
+    BITMAP_TYPE disc_spot;
+    BITMAP_CHUNK_TYPE spot_cluster;
+    ULONG64 index_in_cluster;
 
     EnterCriticalSection(&disc_in_use_lock);
 
     // This grabs the actual char (byte) that holds the bit we need to change
-    disc_spot = disc_in_use + disc_index / BITMAP_CHUNK_SIZE;
+    disc_spot = disc_in_use + disc_index / BITMAP_CHUNK_SIZE_IN_BITS;
     spot_cluster = *disc_spot;
 
     // This gets the bit's index inside the char
-    index_in_cluster = disc_index % BITMAP_CHUNK_SIZE;
+    index_in_cluster = disc_index % BITMAP_CHUNK_SIZE_IN_BITS;
 
     // We set the bit to be zero by comparing it using a LOGICAL AND (&=) with all ones,
     // Except for a zero at the place we want to set as zero.
@@ -132,9 +142,9 @@ VOID free_disc_space(ULONG64 disc_index)
     // The zero surrounded by parenthesis is the bit we change; all others are preserved
 
     // This asserts that the disc space is not already free
-    assert(spot_cluster & (1<<(index_in_cluster)))
+    assert(spot_cluster & (FULL_UNIT << (index_in_cluster)))
 
-    spot_cluster &= ~(1<<(index_in_cluster));
+    spot_cluster &= ~(FULL_UNIT << (index_in_cluster));
 
     // Write the char back out after the bit has been changed
     *disc_spot = spot_cluster;
@@ -324,7 +334,8 @@ int main (int argc, char** argv)
 
     initialize_system();
 
-    full_virtual_memory_test();
+    run_system();
+    printf("vm.c : tests finished\n");
 
     deinitialize_system();
     return 0;

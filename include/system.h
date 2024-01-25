@@ -15,10 +15,28 @@
 #define NUMBER_OF_DISC_PAGES                     (MB (16) / PAGE_SIZE)
 #define NUMBER_OF_SYSTEM_THREADS                 2
 
-#define BITS_PER_BYTE                            8
-#define BITMAP_CHUNK_SIZE                        8
 #define MAX_ULONG64                              ((ULONG64) - 1) // 0xFFFFFFFFFFFFFFFF
-#define FULL_BITMAP_CHUNK                        MAX_ULONG64
+#define BITS_PER_BYTE                            8
+
+#define BIG_BITMAP                                   0
+#if BIG_BITMAP
+#define BITMAP_TYPE                              PULONG64
+#define BITMAP_CHUNK_TYPE                        ULONG64
+#define BITMAP_CHUNK_SIZE_IN_BITS                64
+#define FULL_BITMAP_CHUNK                        0xFFFFFFFFFFFFFFFF
+#define EMPTY_BITMAP_CHUNK                       0x0000000000000000
+#define EMPTY_UNIT                               0
+#define FULL_UNIT                                1
+#else
+#define BITMAP_TYPE                              PUCHAR
+#define BITMAP_CHUNK_TYPE                        UCHAR
+#define BITMAP_CHUNK_SIZE_IN_BITS                8
+#define FULL_BITMAP_CHUNK                        0xFF
+#define EMPTY_BITMAP_CHUNK                       0x00
+#define EMPTY_UNIT                               0
+#define FULL_UNIT                                1
+#endif
+
 #define PTE_REGION_SIZE                          256
 
 // With a region size of 256, we have 1MB of virtual memory per region
@@ -37,8 +55,10 @@ extern PVOID modified_write_va;
 extern PVOID modified_read_va;
 extern PVOID repurpose_zero_va;
 extern PVOID disc_space;
-extern PUCHAR disc_in_use;
-extern PUCHAR disc_in_use_end;
+
+extern BITMAP_TYPE disc_in_use;
+extern BITMAP_TYPE disc_in_use_end;
+
 extern PPFN pfn_base;
 extern PPFN pfn_end;
 extern ULONG_PTR highest_frame_number;
@@ -48,14 +68,19 @@ extern HANDLE modified_writing_event;
 extern HANDLE pages_available_event;
 extern HANDLE disc_spot_available_event;
 extern HANDLE system_exit_event;
+extern HANDLE system_start_event;
 
 extern CRITICAL_SECTION pte_region_locks[NUMBER_OF_PTE_REGIONS];
 extern CRITICAL_SECTION disc_in_use_lock;
+extern CRITICAL_SECTION modified_write_va_lock;
+extern CRITICAL_SECTION modified_read_va_lock;
+extern CRITICAL_SECTION repurpose_zero_va_lock;
 
 extern DWORD modified_write_thread(PVOID context);
 extern DWORD trim_thread(PVOID context);
 
 extern VOID initialize_system(VOID);
+extern VOID run_system(VOID);
 extern VOID deinitialize_system(VOID);
 extern VOID full_virtual_memory_test(VOID);
 

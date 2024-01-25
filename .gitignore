@@ -3,6 +3,7 @@
 cmake-build-debug/
 build/
 docs/
+performance-tests/
 
 # Prerequisites
 *.d

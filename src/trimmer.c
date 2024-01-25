@@ -86,10 +86,14 @@ DWORD trim_thread(PVOID context) {
 
     // We wait on two handles here in order to react by terminating when the system exits
     // Or react by waking up and trimming pages if necessary
-    HANDLE handles[2];
+    HANDLE handles[3];
 
     handles[0] = system_exit_event;
     handles[1] = wake_aging_event;
+
+    // Wait for the system to start before beginning to trim pages
+    WaitForSingleObject(system_start_event, INFINITE);
+    printf("trimmer.c : aging and trimming thread started\n");
 
     // This thread infinitely waits to be woken up by other threads until the end of the program
     while (TRUE)
@@ -111,5 +115,40 @@ DWORD trim_thread(PVOID context) {
         }
     }
     // This return statement only exists to satisfy the API requirements for a thread starting function
+    return 0;
+}
+
+DWORD aging_thread(PVOID context)
+{
+    UNREFERENCED_PARAMETER(context);
+
+    HANDLE handles[3];
+    handles[0] = system_start_event;
+    handles[1] = system_exit_event;
+    handles[2] = wake_aging_event;
+
+    WaitForSingleObject(system_start_event, INFINITE);
+
+    while (TRUE)
+    {
+        ULONG index = WaitForMultipleObjects(ARRAYSIZE(handles), handles,
+                                             FALSE, INFINITE);
+        if (index == 0)
+        {
+            break;
+        }
+
+        /* Plan for aging pages */
+        // 1. When woken, find the rate pages are leaving the free or standby lists
+        // 2. Estimate a duration until the lists will be empty
+        // 3. Separate the duration into 8 equal parts so that we can age pages 8 times
+        // 3. Do a passthrough
+        // 4. Sleep until it is time for the next passthrough
+        // 5. Wait for the next wake event
+
+        // 1. When woken, find the rate pages are leaving the free or standby lists
+
+    }
+
     return 0;
 }
