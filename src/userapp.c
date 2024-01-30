@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <stdlib.h>
 #include <Windows.h>
 #include "../include/userapp.h"
 #include "../include/debug.h"
@@ -14,13 +13,7 @@
 // MB has no reflection on the actual size of the memory we are using
 #define NUM_ADDRESSES MB(1) / 10
 
-ULONG64 fake_faults;
-ULONG64 num_faults;
-
-ULONG64 num_first_accesses;
-ULONG64 num_reaccesses;
-
-VOID full_virtual_memory_test (VOID) {
+VOID full_virtual_memory_test(VOID) {
 
     PULONG_PTR arbitrary_va;
     ULONG random_number;
@@ -34,6 +27,25 @@ VOID full_virtual_memory_test (VOID) {
     ULONG start_time;
     ULONG end_time;
     ULONG time_elapsed;
+
+    ULONG thread_id;
+    ULONG thread_index;
+
+    // Compute faulting stats for the thread using thread index in the array
+    thread_id = GetCurrentThreadId();
+    thread_index = 0;
+    for (ULONG i = 0; i < NUMBER_OF_FAULTING_THREADS; i++)
+    {
+        if (faulting_thread_ids[i] == thread_id)
+        {
+            thread_index = i;
+            break;
+        }
+    }
+
+    PFAULT_STATS stats = &fault_stats[thread_index];
+
+    printf("userapp.c : thread %lu started\n", thread_index);
 
     // This replaces a malloc call in our system
     // Right now, we are just giving a set amount to the caller
@@ -56,8 +68,6 @@ VOID full_virtual_memory_test (VOID) {
         // (without faulting to the operating system again).
 
         // This computes a random virtual address within our range
-//        srand(GetTickCount());
-//        random_number = rand(); // NOLINT(*-msc50-cpp)
         random_number = GetTickCount() + i * (GetCurrentThreadId() << 12);
         random_number %= virtual_address_size_in_pages;
         arbitrary_va = p + (random_number * PAGE_SIZE) / sizeof(ULONG_PTR);
@@ -78,11 +88,11 @@ VOID full_virtual_memory_test (VOID) {
                     {
                         fatal_error("full_virtual_memory_test : page contents are not the same as the VA");
                     }
-                    num_reaccesses++;
+                    stats->num_reaccesses++;
                 }
                 else
                 {
-                    num_first_accesses++;
+                    stats->num_first_accesses++;
                 }
 
                 // We are trying to write the VA as a number into the page contents associated with that VA
@@ -97,16 +107,21 @@ VOID full_virtual_memory_test (VOID) {
             // We call the page fault handler no matter what
             // This is because we want to reset the age of a PTE when its VA is accessed
             // This is done in the handler, as is referred to in this program as a fake fault
-            page_fault_handler(arbitrary_va);
+            page_fault_handler(arbitrary_va, stats);
         } while (TRUE == page_faulted);
     }
 
     // This gets the time elapsed in milliseconds
     end_time = GetTickCount();
     time_elapsed = end_time - start_time;
-    printf("full_virtual_memory_test : finished accessing %d random virtual addresses in %lu ms (%f s)\n",
-           NUM_ADDRESSES, time_elapsed, time_elapsed / 1000.0);
-    printf("full_virtual_memory_test : took %llu faults and %llu fake faults\n", num_faults, fake_faults);
+
+    // Consolidate into one print statement
+    printf("\nfull_virtual_memory_test : thread %lu finished accessing %d random virtual addresses in %lu ms (%f s)\n"
+           "full_virtual_memory_test : thread %lu took %llu faults and %llu fake faults\n"
+           "full_virtual_memory_test : thread %lu took %llu first accesses and %llu reaccesses\n\n",
+           thread_index, NUM_ADDRESSES, time_elapsed, time_elapsed / 1000.0,
+           thread_index, stats->num_faults, stats->num_fake_faults,
+           thread_index, stats->num_first_accesses, stats->num_reaccesses);
 }
 
 // This function controls a faulting thread

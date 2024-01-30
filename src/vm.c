@@ -156,7 +156,7 @@ VOID free_disc_space(ULONG64 disc_index)
 }
 
 // This is where we handle any access or fault of a page
-VOID page_fault_handler(PVOID arbitrary_va)
+VOID page_fault_handler(PVOID arbitrary_va, PFAULT_STATS stats)
 {
     PPTE pte;
     PTE pte_contents;
@@ -184,7 +184,7 @@ VOID page_fault_handler(PVOID arbitrary_va)
     if (pte_contents.memory_format.valid == 1)
     {
         // LM MULTITHREADING FIX write a function that uses a dictionary to update debug stats and uses interlocked increment
-        fake_faults++;
+        stats->num_fake_faults++;
         // We do this check to avoid a pte write
         if (pte_contents.memory_format.age == 0)
         {
@@ -200,7 +200,7 @@ VOID page_fault_handler(PVOID arbitrary_va)
     }
 
     // At this point, we know that the page actually faulted
-    num_faults++;
+    stats->num_faults++;
 
     // If the entre pte is zeroed, it means that this is a brand new va that has never been accessed.
     // Technically, we only need to know that on_disc and the field at the position of

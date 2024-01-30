@@ -59,7 +59,6 @@ typedef struct {
     CRITICAL_SECTION lock;
 } PFN_LIST, *PPFN_LIST;
 
-
 extern PPTE pte_from_va(PVOID virtual_address);
 extern PVOID va_from_pte(PPTE pte);
 extern ULONG64 frame_number_from_pfn(PPFN pfn);

@@ -42,6 +42,14 @@
 // With a region size of 256, we have 1MB of virtual memory per region
 #define NUMBER_OF_PTE_REGIONS                    ((NUMBER_OF_PHYSICAL_PAGES + NUMBER_OF_DISC_PAGES) / PTE_REGION_SIZE)
 
+#define SPIN_COUNTS                              1
+#if SPIN_COUNTS
+#define SPIN_COUNT                               0xFFFFFF
+#define INITIALIZE_LOCK(x)                       InitializeCriticalSectionAndSpinCount(&x, SPIN_COUNT)
+#else
+#define INITIALIZE_LOCK(x)                       InitializeCriticalSection(&x)
+#endif
+
 extern ULONG_PTR physical_page_count;
 extern ULONG_PTR disc_page_count;
 extern ULONG_PTR virtual_address_size;
@@ -82,6 +90,4 @@ extern DWORD trim_thread(PVOID context);
 extern VOID initialize_system(VOID);
 extern VOID run_system(VOID);
 extern VOID deinitialize_system(VOID);
-extern VOID full_virtual_memory_test(VOID);
-
 #endif //VM_SYSTEM_H

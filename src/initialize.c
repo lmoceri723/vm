@@ -15,6 +15,7 @@ PULONG_PTR physical_page_numbers;
 // These are handles to our faulting threads
 HANDLE faulting_handles[NUMBER_OF_FAULTING_THREADS];
 ULONG faulting_thread_ids[NUMBER_OF_FAULTING_THREADS];
+FAULT_STATS fault_stats[NUMBER_OF_FAULTING_THREADS];
 
 // These are handles to our system threads, our trimming/modified-writing threads
 HANDLE system_handles[NUMBER_OF_SYSTEM_THREADS];
@@ -90,18 +91,18 @@ VOID GetPrivilege(VOID)
 // This function is used to initialize all the locks used in the system
 VOID initialize_locks(VOID)
 {
-    InitializeCriticalSection(&disc_in_use_lock);
-    InitializeCriticalSection(&modified_write_va_lock);
-    InitializeCriticalSection(&modified_read_va_lock);
-    InitializeCriticalSection(&repurpose_zero_va_lock);
+    INITIALIZE_LOCK(disc_in_use_lock);
+    INITIALIZE_LOCK(modified_write_va_lock);
+    INITIALIZE_LOCK(modified_read_va_lock);
+    INITIALIZE_LOCK(repurpose_zero_va_lock);
 
-    InitializeCriticalSection(&free_page_list.lock);
-    InitializeCriticalSection(&standby_page_list.lock);
-    InitializeCriticalSection(&modified_page_list.lock);
+    INITIALIZE_LOCK(free_page_list.lock);
+    INITIALIZE_LOCK(standby_page_list.lock);
+    INITIALIZE_LOCK(modified_page_list.lock);
 
     for (unsigned i = 0; i < NUMBER_OF_PTE_REGIONS; i++)
     {
-        InitializeCriticalSection(&pte_region_locks[i]);
+        INITIALIZE_LOCK(pte_region_locks[i]);
     }
 }
 
@@ -146,6 +147,15 @@ VOID initialize_threads(VOID)
         faulting_handles[i] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)
         faulting_thread,(LPVOID) (ULONG_PTR) i, 0, &faulting_thread_ids[i]);
         NULL_CHECK(faulting_handles[i], "initialize_threads : could not initialize thread handle for faulting_thread")
+    }
+
+    // Initialize faulting thread stat counters
+    for (ULONG i = 0; i < NUMBER_OF_FAULTING_THREADS; i++)
+    {
+        fault_stats[i].num_faults = 0;
+        fault_stats[i].num_first_accesses = 0;
+        fault_stats[i].num_reaccesses = 0;
+        fault_stats[i].num_fake_faults = 0;
     }
 
     system_handles[0] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)
@@ -290,7 +300,7 @@ VOID initialize_pfn_metadata(VOID)
         pfn->flags.state = FREE;
         // This should be done in initialize_locks, but this is an intermediary method of locking PFNs
         // So it is pointless to move
-        InitializeCriticalSection(&pfn->lock);
+        INITIALIZE_LOCK(pfn->lock);
 
         // Inserts our newly initialized pfn into the free page list
         InsertTailList(&free_page_list.entry, &pfn->entry);
