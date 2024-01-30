@@ -86,7 +86,7 @@ DWORD trim_thread(PVOID context) {
 
     // We wait on two handles here in order to react by terminating when the system exits
     // Or react by waking up and trimming pages if necessary
-    HANDLE handles[3];
+    HANDLE handles[2];
 
     handles[0] = system_exit_event;
     handles[1] = wake_aging_event;

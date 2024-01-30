@@ -151,31 +151,34 @@ PPFN pop_from_list(PPFN_LIST listhead)
     PPFN peeked_page;
     PPFN taken_page;
 
+    EnterCriticalSection(&listhead->lock);
+
     while (took_page == FALSE) {
         // Peek at the head of the list
-        peeked_page = CONTAINING_RECORD(listhead->entry.Flink, PFN, entry);
-        // Lock the pfn at the head
-        lock_pfn(peeked_page);
-        // Lock the list
-        EnterCriticalSection(&listhead->lock);
-
-        // If the list is empty, relinquish both locks and return
-        if (listhead->num_pages == 0)
+        // If the list is empty, return
+        if (IsListEmpty(&listhead->entry))
         {
             LeaveCriticalSection(&listhead->lock);
-            unlock_pfn(peeked_page);
             return NULL;
         }
 
-        // If the pages do not match up relinquish both locks and try again
-        if (CONTAINING_RECORD(listhead->entry.Flink, PFN, entry) != peeked_page) {
+        // If not empty, grab the head of the list
+        peeked_page = CONTAINING_RECORD(listhead->entry.Flink, PFN, entry);
+        // Try to lock the pfn at the head
+        if (TryEnterCriticalSection(&peeked_page->lock) == FALSE) {
+            // If we can't lock the pfn then we relinquish the lock on the list and try again
             LeaveCriticalSection(&listhead->lock);
-            unlock_pfn(peeked_page);
+            // We relinquish the lock in hopes that another thread
+            // Will make progress on this page and relinquish its lock or take the page entirely
+            // Try to do the operation again
+            EnterCriticalSection(&listhead->lock);
             continue;
         }
 
-        // If the pages do match up, pop the page from the list
+        assert(listhead->num_pages != 0)
+        // Do the actual work of removing it now that we know its safe
         taken_page = pop_from_list_helper(listhead);
+        assert(taken_page == peeked_page)
         // Relinquish lock for list
         LeaveCriticalSection(&listhead->lock);
         took_page = TRUE;
@@ -241,7 +244,9 @@ PFN read_pfn(PPFN pfn)
 
 VOID write_pfn(PPFN pfn, PFN local)
 {
-    *pfn = local;
+    pfn->pte = local.pte;
+    pfn->flags = local.flags;
+    pfn->disc_index = local.disc_index;
 }
 
 // Functions to lock and unlock PTE regions and individual PFNs
@@ -266,10 +271,10 @@ VOID unlock_pte(PPTE pte)
 
 VOID lock_pfn(PPFN pfn)
 {
-    EnterCriticalSection(&pfn->flags.lock);
+    EnterCriticalSection(&pfn->lock);
 }
 
 VOID unlock_pfn(PPFN pfn)
 {
-    LeaveCriticalSection(&pfn->flags.lock);
+    LeaveCriticalSection(&pfn->lock);
 }

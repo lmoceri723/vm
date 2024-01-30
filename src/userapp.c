@@ -56,8 +56,9 @@ VOID full_virtual_memory_test (VOID) {
         // (without faulting to the operating system again).
 
         // This computes a random virtual address within our range
-        srand(GetCurrentThreadId());
-        random_number = rand(); // NOLINT(*-msc50-cpp)
+//        srand(GetTickCount());
+//        random_number = rand(); // NOLINT(*-msc50-cpp)
+        random_number = GetTickCount() + i * (GetCurrentThreadId() << 12);
         random_number %= virtual_address_size_in_pages;
         arbitrary_va = p + (random_number * PAGE_SIZE) / sizeof(ULONG_PTR);
 

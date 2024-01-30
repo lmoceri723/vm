@@ -17,6 +17,8 @@
 // LM FUTURE FIX IMPLEMENT A REAL DISC DRIVER
 // LM FUTURE FIX COME UP WITH A BETTER WAY TO AGE PAGES
 
+// Ask about the HANDLE datatype
+
 PPFN get_free_page(VOID);
 PPFN read_page_on_disc(PPTE pte, PPFN free_page);
 VOID free_disc_space(ULONG64 disc_index);
@@ -38,14 +40,14 @@ PPFN get_free_page(VOID) {
     PPFN free_page = NULL;
 
     // First, we check the free page list for pages
-    if (free_page_list.num_pages != 0) {
-        // Once we allow users to free memory, we will need to zero this too
-        free_page = pop_from_list(&free_page_list);
-        assert(free_page == NULL || free_page->flags.state == FREE)
-    }
+    // There is no value to checking if the list is empty
+    // An attempt to pop from an empty list will return NULL, and we will move on to the next list
+    // Once we allow users to free memory, we will need to zero this too
+    free_page = pop_from_list(&free_page_list);
+    assert(free_page == NULL || free_page->flags.state == FREE)
 
     // This is where we take pages from the standby list and reallocate their physical pages for our new va to use
-    if (free_page == NULL && standby_page_list.num_pages != 0)
+    if (free_page == NULL)
     {
         free_page = pop_from_list(&standby_page_list);
         if (free_page == NULL) {
@@ -255,6 +257,8 @@ VOID page_fault_handler(PVOID arbitrary_va)
         pte_contents = read_pte(pte);
         if (pte_contents.disc_format.on_disc == 1)
         {
+            unlock_pfn(pfn);
+            unlock_pte(pte);
             return;
         }
 

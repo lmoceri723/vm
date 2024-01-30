@@ -42,8 +42,6 @@ typedef struct {
 typedef struct {
     // States are FREE, STANDBY, ZEROED (to be added), ACTIVE, and MODIFIED
     ULONG state:3;
-    // In the future, these locks will be made into single bits instead of massive CRITICAL_SECTIONS
-    CRITICAL_SECTION lock;
 }PFN_FLAGS/*, *PPFN_FLAGS*/;
 
 typedef struct {
@@ -51,6 +49,8 @@ typedef struct {
     PPTE pte;
     PFN_FLAGS flags;
     ULONG64 disc_index;
+    // In the future, these locks will be made into single bits instead of massive CRITICAL_SECTIONS
+    CRITICAL_SECTION lock;
 } PFN, *PPFN;
 
 typedef struct {

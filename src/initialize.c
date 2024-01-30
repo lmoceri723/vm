@@ -108,18 +108,21 @@ VOID initialize_locks(VOID)
 // This function is used to initialize all the events used in the system
 VOID initialize_events(VOID)
 {
+    // Synchronization Events
     wake_aging_event = CreateEvent(NULL, FALSE, FALSE, NULL);
     NULL_CHECK(wake_aging_event, "initialize_events : could not initialize wake_aging_event")
 
     modified_writing_event = CreateEvent(NULL, FALSE, FALSE, NULL);
     NULL_CHECK(modified_writing_event, "initialize_events : could not initialize modified_writing_event")
 
+    // TODO LM FIX Not a synchronization event
     pages_available_event = CreateEvent(NULL, FALSE, FALSE, NULL);
     NULL_CHECK(pages_available_event, "initialize_events : could not initialize pages_available_event")
 
     disc_spot_available_event = CreateEvent(NULL, FALSE, FALSE, NULL);
     NULL_CHECK(disc_spot_available_event, "initialize_events : could not initialize disc_spot_available_event")
 
+    // Notification Events
     system_exit_event = CreateEvent(NULL, TRUE, FALSE, NULL);
     NULL_CHECK(system_exit_event, "initialize_events : could not initialize system_exit_event")
 
@@ -287,7 +290,7 @@ VOID initialize_pfn_metadata(VOID)
         pfn->flags.state = FREE;
         // This should be done in initialize_locks, but this is an intermediary method of locking PFNs
         // So it is pointless to move
-        InitializeCriticalSection(&pfn->flags.lock);
+        InitializeCriticalSection(&pfn->lock);
 
         // Inserts our newly initialized pfn into the free page list
         InsertTailList(&free_page_list.entry, &pfn->entry);
@@ -332,7 +335,8 @@ VOID run_system(VOID)
     // This sets the event to start the system
     SetEvent(system_start_event);
 
-    // This waits for the system to exit before proceeding
+    // This waits for the tests to finish running before exiting the function
+    // Our controlling thread will wait for this function to finish before exiting the test and reporting stats
     WaitForMultipleObjects(NUMBER_OF_FAULTING_THREADS, faulting_handles, TRUE, INFINITE);
 }
 
