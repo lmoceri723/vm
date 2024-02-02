@@ -42,7 +42,7 @@ PPFN get_free_page(VOID) {
     // First, we check the free page list for pages
     // There is no value to checking if the list is empty
     // An attempt to pop from an empty list will return NULL, and we will move on to the next list
-    // Once we allow users to free memory, we will need to zero this too
+    // Once we allow users to free memory, we will need to zero this too and do so using a thread
     free_page = pop_from_list(&free_page_list);
     assert(free_page == NULL || free_page->flags.state == FREE)
 

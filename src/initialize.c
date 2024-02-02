@@ -38,6 +38,10 @@ CRITICAL_SECTION modified_write_va_lock;
 CRITICAL_SECTION modified_read_va_lock;
 CRITICAL_SECTION repurpose_zero_va_lock;
 
+// These are page file handles
+HANDLE page_file;
+HANDLE page_file_mapping;
+
 // This is Windows-specific code to acquire a privilege.
 VOID GetPrivilege(VOID)
 {
@@ -175,10 +179,37 @@ VOID initialize_page_file(ULONG64 num_disc_pages)
     ULONG64 page_file_size_in_bytes;
     ULONG64 bitmap_size_in_bytes;
 
+//    // Create the actual file
+//    page_file = CreateFile("pagefile.sys", GENERIC_READ | GENERIC_WRITE, 0,
+//                       NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL,
+//                       NULL);
+//    if (page_file == INVALID_HANDLE_VALUE) {
+//        fatal_error("create_page_file : could not create page file");
+//    }
+//
+//    // Set the size of the file
     page_file_size_in_bytes = num_disc_pages * PAGE_SIZE;
+//    if (SetFilePointer(page_file, page_file_size_in_bytes, NULL,
+//                       FILE_BEGIN) == INVALID_SET_FILE_POINTER) {
+//        fatal_error("create_page_file : could not set file pointer");
+//    }
+//    if (SetEndOfFile(page_file) == 0) {
+//        fatal_error("create_page_file : could not set end of file");
+//    }
+//
+//    // Create a file mapping for the page file
+//    page_file_mapping = CreateFileMapping(page_file, NULL, PAGE_READWRITE,
+//                                          0, 0, NULL);
+//    if (page_file_mapping == NULL) {
+//        printf("create_page_file : could not create file mapping %lu\n", GetLastError());
+//        fatal_error(NULL);
+//    }
+//
+//    (PVOID) MapViewOfFile(page_file_mapping, FILE_MAP_ALL_ACCESS,
+//                          0, 0, 0);
     // Allocates the memory for the page file
     disc_space = malloc(page_file_size_in_bytes);
-    NULL_CHECK(disc_space, "create_page_file : could not allocate memory for disc space")
+    NULL_CHECK(disc_space, "create_page_file : could not map view of page file")
 
     // Allocates the memory for the disc in use bitmap
     // This will remain in memory, as it is used to track which pages are in use and not part of the page file
@@ -327,7 +358,7 @@ VOID initialize_pages()
     }
 
     if (physical_page_count != NUMBER_OF_PHYSICAL_PAGES) {
-        printf("initialize_pages : allocated only %llu pages out of %u pages requested", physical_page_count,
+        printf("initialize_pages : allocated only %llu pages out of %llu pages requested", physical_page_count,
                NUMBER_OF_PHYSICAL_PAGES);
     }
 
@@ -395,6 +426,7 @@ VOID deinitialize_system (VOID)
     VirtualFree(va_base, virtual_address_size, MEM_RELEASE);
     free(disc_in_use);
     free(disc_space);
+
     VirtualFree(pfn_base, physical_page_numbers[physical_page_count - 1] * sizeof(PFN),
                 MEM_RELEASE);
 

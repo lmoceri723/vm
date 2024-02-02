@@ -9,7 +9,7 @@
 #define PAGE_SIZE                   4096
 #define NUMBER_OF_FAULTING_THREADS  8
 #define MB(x)                       ((x) * 1024 * 1024)
-//#define GB(x)                       (MB (x) * 1024)
+#define GB(x)                       ((x) * 1024 * 1024 * 1024)
 
 
 typedef struct {

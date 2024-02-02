@@ -11,14 +11,18 @@
 #define MODIFIED 3
 #define ACTIVE 4
 
-#define NUMBER_OF_PHYSICAL_PAGES                 (MB (1) / PAGE_SIZE)
-#define NUMBER_OF_DISC_PAGES                     (MB (16) / PAGE_SIZE)
+#define MEMORY_SIZE_IN_GB                        ((ULONG64) 8)
+#define PAGE_FILE_SIZE_IN_GB                     ((ULONG64) 16)
+
+#define NUMBER_OF_PHYSICAL_PAGES                 (GB(MEMORY_SIZE_IN_GB) / PAGE_SIZE)
+#define NUMBER_OF_DISC_PAGES                     (GB(PAGE_FILE_SIZE_IN_GB) / PAGE_SIZE)
+
 #define NUMBER_OF_SYSTEM_THREADS                 2
 
 #define MAX_ULONG64                              ((ULONG64) - 1) // 0xFFFFFFFFFFFFFFFF
 #define BITS_PER_BYTE                            8
 
-#define BIG_BITMAP                                   0
+#define BIG_BITMAP                               0
 #if BIG_BITMAP
 #define BITMAP_TYPE                              PULONG64
 #define BITMAP_CHUNK_TYPE                        ULONG64
@@ -37,12 +41,12 @@
 #define FULL_UNIT                                1
 #endif
 
-#define PTE_REGION_SIZE                          256
+#define PTE_REGION_SIZE                          512
 
 // With a region size of 256, we have 1MB of virtual memory per region
 #define NUMBER_OF_PTE_REGIONS                    ((NUMBER_OF_PHYSICAL_PAGES + NUMBER_OF_DISC_PAGES) / PTE_REGION_SIZE)
 
-#define SPIN_COUNTS                              1
+#define SPIN_COUNTS                              0
 #if SPIN_COUNTS
 #define SPIN_COUNT                               0xFFFFFF
 #define INITIALIZE_LOCK(x)                       InitializeCriticalSectionAndSpinCount(&x, SPIN_COUNT)

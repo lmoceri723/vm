@@ -66,8 +66,10 @@ extern PPFN pfn_from_frame_number(ULONG64 frame_number);
 
 extern VOID lock_pte(PPTE pte);
 extern VOID unlock_pte(PPTE pte);
+extern BOOLEAN try_lock_pte(PPTE pte);
 extern VOID lock_pfn(PPFN pfn);
 extern VOID unlock_pfn(PPFN pfn);
+extern BOOLEAN try_lock_pfn(PPFN pfn);
 
 extern PTE read_pte(PPTE pte);
 extern VOID write_pte(PPTE pte, PTE pte_contents);

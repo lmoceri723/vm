@@ -165,7 +165,7 @@ PPFN pop_from_list(PPFN_LIST listhead)
         // If not empty, grab the head of the list
         peeked_page = CONTAINING_RECORD(listhead->entry.Flink, PFN, entry);
         // Try to lock the pfn at the head
-        if (TryEnterCriticalSection(&peeked_page->lock) == FALSE) {
+        if (try_lock_pfn(peeked_page) == FALSE) {
             // If we can't lock the pfn then we relinquish the lock on the list and try again
             LeaveCriticalSection(&listhead->lock);
             // We relinquish the lock in hopes that another thread
@@ -269,6 +269,14 @@ VOID unlock_pte(PPTE pte)
     LeaveCriticalSection(&pte_region_locks[index]);
 }
 
+BOOLEAN try_lock_pte(PPTE pte)
+{
+    ULONG64 index = pte - pte_base;
+    index /= PTE_REGION_SIZE;
+
+    return TryEnterCriticalSection(&pte_region_locks[index]);
+}
+
 VOID lock_pfn(PPFN pfn)
 {
     EnterCriticalSection(&pfn->lock);
@@ -277,4 +285,9 @@ VOID lock_pfn(PPFN pfn)
 VOID unlock_pfn(PPFN pfn)
 {
     LeaveCriticalSection(&pfn->lock);
+}
+
+BOOLEAN try_lock_pfn(PPFN pfn)
+{
+    return TryEnterCriticalSection(&pfn->lock);
 }
