@@ -3,10 +3,13 @@
 #include "../include/structs.h"
 #include "../include/system.h"
 #include "../include/debug.h"
+#include "../include/userapp.h"
 
 // This function puts an individual page on the modified list given its PTE
 void trim(PPTE pte)
 {
+    num_trims++;
+
     PPFN pfn;
     PFN pfn_contents;
     PTE old_pte_contents;
@@ -122,10 +125,9 @@ DWORD aging_thread(PVOID context)
 {
     UNREFERENCED_PARAMETER(context);
 
-    HANDLE handles[3];
-    handles[0] = system_start_event;
-    handles[1] = system_exit_event;
-    handles[2] = wake_aging_event;
+    HANDLE handles[2];
+    handles[0] = system_exit_event;
+    handles[1] = wake_aging_event;
 
     WaitForSingleObject(system_start_event, INFINITE);
 
@@ -141,14 +143,48 @@ DWORD aging_thread(PVOID context)
         /* Plan for aging pages */
         // 1. When woken, find the rate pages are leaving the free or standby lists
         // 2. Estimate a duration until the lists will be empty
-        // 3. Separate the duration into 8 equal parts so that we can age pages 8 times
-        // 3. Do a passthrough
-        // 4. Sleep until it is time for the next passthrough
-        // 5. Wait for the next wake event
-
-        // 1. When woken, find the rate pages are leaving the free or standby lists
+        // 4. Divide the duration by 8 to get 8 increments, one for each age
+        // 5. For each respective increment, divide the 100% of the va space
+        // between the amount of seconds until the next increment
+        // That way, every second a small amount of work will be done
+        // Instead of a large amount of work being done all at once
+        // 6. Do the required passthrough
+        // 7. Sleep until it is time for the next passthrough
 
     }
 
+    return 0;
+}
+
+HANDLE trim_wake_event;
+DWORD trimming_thread(PVOID context)
+{
+    UNREFERENCED_PARAMETER(context);
+
+    HANDLE handles[2];
+    handles[0] = system_exit_event;
+    handles[1] = trim_wake_event;
+
+    WaitForSingleObject(system_start_event, INFINITE);
+
+    while (TRUE)
+    {
+        ULONG index = WaitForMultipleObjects(ARRAYSIZE(handles), handles,
+                                             FALSE, INFINITE);
+        if (index == 0)
+        {
+            break;
+        }
+
+        /* Plan for trimming pages */
+        // Batch unmap_pages() calls done in age_pages()
+        // The aging thread now keeps track of the pages it wants to trim instead of directly trimming them
+        // When the amount of pages to trim is greater than a threshold (64, 256, i. e)
+        // Or before the thread goes to sleep
+        // The aging thread wakes up the trimming thread and tells it to trim the specified pages
+        // The trimming thread then trims the pages, batching the unmap_pages() calls
+        // This fixes the problem of contention during unmap calls and speeds up aging dramatically
+
+    }
     return 0;
 }

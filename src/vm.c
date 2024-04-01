@@ -27,12 +27,14 @@ ULONG_PTR virtual_address_size;
 ULONG_PTR physical_page_count;
 ULONG_PTR disc_page_count;
 PVOID va_base;
+PVOID va__end;
 PVOID modified_write_va;
 PVOID modified_read_va;
 PVOID repurpose_zero_va;
 PVOID disc_space;
 
 BITMAP_TYPE disc_in_use;
+ULONG64 free_disc_spot_count;
 BITMAP_TYPE disc_in_use_end;
 
 // This is how we get pages for new virtual addresses as well as old ones only exist on the paging file
@@ -54,6 +56,7 @@ PPFN get_free_page(VOID) {
             SetEvent(wake_aging_event);
             return NULL;
         }
+
 
         PPTE other_pte = free_page->pte;
         ULONG64 other_disc_index = free_page->disc_index;
@@ -150,8 +153,49 @@ VOID free_disc_space(ULONG64 disc_index)
 
     // Write the char back out after the bit has been changed
     *disc_spot = spot_cluster;
+    free_disc_spot_count++;
 
     LeaveCriticalSection(&disc_in_use_lock);
+    SetEvent(disc_spot_available_event);
+}
+
+VOID free_disc_space_with_lock(ULONG64 disc_index)
+{
+    BITMAP_TYPE disc_spot;
+    BITMAP_CHUNK_TYPE spot_cluster;
+    ULONG64 index_in_cluster;
+
+    //EnterCriticalSection(&disc_in_use_lock);
+
+    // This grabs the actual char (byte) that holds the bit we need to change
+    disc_spot = disc_in_use + disc_index / BITMAP_CHUNK_SIZE_IN_BITS;
+    spot_cluster = *disc_spot;
+
+    // This gets the bit's index inside the char
+    index_in_cluster = disc_index % BITMAP_CHUNK_SIZE_IN_BITS;
+
+    // We set the bit to be zero by comparing it using a LOGICAL AND (&=) with all ones,
+    // Except for a zero at the place we want to set as zero.
+    // We compute this comparison value by taking one positive bit (1)
+    // And left-shifting (<<) it by index_in_cluster bits to its corresponding position in the char
+    // If the position is two, then our 1 would become 001. Five more bits would then be added to the end
+    // By the compiler in order to match the size of the char it is being compared to (00100000)
+    // Then we flip these bits using the (~) operator to get our comparison value
+
+    // Example: (actual byte) 11011101 &= 11111011 (comparison value)
+    // Result: 11011(0)01
+    // The zero surrounded by parenthesis is the bit we change; all others are preserved
+
+    // This asserts that the disc space is not already free
+    assert(spot_cluster & (FULL_UNIT << (index_in_cluster)))
+
+    spot_cluster &= ~(FULL_UNIT << (index_in_cluster));
+
+    // Write the char back out after the bit has been changed
+    *disc_spot = spot_cluster;
+    free_disc_spot_count++;
+
+    //LeaveCriticalSection(&disc_in_use_lock);
     SetEvent(disc_spot_available_event);
 }
 
@@ -295,6 +339,12 @@ VOID page_fault_handler(PVOID arbitrary_va, PFAULT_STATS stats)
     pfn_contents.pte = pte;
     pfn_contents.flags.state = ACTIVE;
     pfn_contents.disc_index = 0;
+
+    if (pfn->flags.state == MODIFIED) {
+        pfn_contents.flags.modified = 1;
+    } else {
+        pfn_contents.flags.modified = 0;
+    }
     write_pfn(pfn, pfn_contents);
 
     // This is a Windows API call that confirms the changes we made with the OS
@@ -342,5 +392,6 @@ int main (int argc, char** argv)
     printf("vm.c : tests finished\n");
 
     deinitialize_system();
+
     return 0;
 }

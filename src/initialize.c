@@ -31,6 +31,7 @@ HANDLE disc_spot_available_event;
 HANDLE system_exit_event;
 HANDLE system_start_event;
 
+
 // These are the locks used in our system
 CRITICAL_SECTION pte_region_locks[NUMBER_OF_PTE_REGIONS];
 CRITICAL_SECTION disc_in_use_lock;
@@ -209,7 +210,7 @@ VOID initialize_page_file(ULONG64 num_disc_pages)
 //                          0, 0, 0);
     // Allocates the memory for the page file
     disc_space = malloc(page_file_size_in_bytes);
-    NULL_CHECK(disc_space, "create_page_file : could not map view of page file")
+    NULL_CHECK(disc_space, "create_page_file : could not create page file")
 
     // Allocates the memory for the disc in use bitmap
     // This will remain in memory, as it is used to track which pages are in use and not part of the page file
@@ -221,7 +222,7 @@ VOID initialize_page_file(ULONG64 num_disc_pages)
     disc_in_use = malloc(bitmap_size_in_bytes);
     NULL_CHECK(disc_in_use, "create_page_file : could not allocate memory for disc in use array")
     memset(disc_in_use, EMPTY_UNIT, bitmap_size_in_bytes);
-
+    free_disc_spot_count = num_disc_pages;
     disc_in_use_end = disc_in_use + bitmap_size_in_bytes;
     disc_page_count = num_disc_pages;
 }
@@ -245,7 +246,8 @@ VOID initialize_page_lists(VOID)
 // Or when we move a page from the page file to memory and vice versa
 VOID initialize_system_va_space(VOID)
 {
-    modified_write_va = VirtualAlloc(NULL,PAGE_SIZE,MEM_RESERVE | MEM_PHYSICAL,
+    // TODO MAKE THIS A GLOBAL CONSTANT
+    modified_write_va = VirtualAlloc(NULL,PAGE_SIZE * 256,MEM_RESERVE | MEM_PHYSICAL,
                                      PAGE_READWRITE);
     NULL_CHECK(modified_write_va, "initialize_system_va_space : could not reserve memory for modified write va")
 
@@ -275,6 +277,8 @@ VOID initialize_user_va_space(VOID)
     va_base = VirtualAlloc(NULL, virtual_address_size,MEM_RESERVE | MEM_PHYSICAL,
                            PAGE_READWRITE);
     NULL_CHECK(va_base, "initialize_user_va_space : could not reserve memory for va space")
+
+    //va__end = va_base + virtual_address_size;
 }
 
 // This function initializes the PTEs that we use to map virtual addresses to physical pages
@@ -337,9 +341,6 @@ VOID initialize_pfn_metadata(VOID)
         InsertTailList(&free_page_list.entry, &pfn->entry);
         free_page_list.num_pages++;
     }
-
-    // We are done with physical_page_numbers, so we can free it
-    free(physical_page_numbers);
 }
 
 // This function initializes our page pool

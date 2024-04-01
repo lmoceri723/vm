@@ -42,6 +42,8 @@ typedef struct {
 typedef struct {
     // States are FREE, STANDBY, ZEROED (to be added), ACTIVE, and MODIFIED
     ULONG state:3;
+    ULONG modified:1;
+    ULONG reference:3;
 }PFN_FLAGS/*, *PPFN_FLAGS*/;
 
 typedef struct {
@@ -80,5 +82,6 @@ extern VOID remove_from_list(PPFN pfn);
 extern VOID add_to_list(PPFN pfn, PPFN_LIST listhead);
 extern VOID add_to_list_head(PPFN pfn, PPFN_LIST listhead);
 extern PPFN pop_from_list(PPFN_LIST listhead);
+extern PFN_LIST batch_pop_from_list(PPFN_LIST listhead, PPFN_LIST batch_list, ULONG64 batch_size);
 
 #endif //VM_STRUCTS_H

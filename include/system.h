@@ -17,7 +17,7 @@
 #define NUMBER_OF_PHYSICAL_PAGES                 (GB(MEMORY_SIZE_IN_GB) / PAGE_SIZE)
 #define NUMBER_OF_DISC_PAGES                     (GB(PAGE_FILE_SIZE_IN_GB) / PAGE_SIZE)
 
-#define NUMBER_OF_SYSTEM_THREADS                 2
+#define NUMBER_OF_SYSTEM_THREADS                 8
 
 #define MAX_ULONG64                              ((ULONG64) - 1) // 0xFFFFFFFFFFFFFFFF
 #define BITS_PER_BYTE                            8
@@ -63,12 +63,14 @@ extern PFN_LIST standby_page_list;
 extern PPTE pte_base;
 extern PPTE pte_end;
 extern PVOID va_base;
+extern PVOID va__end;
 extern PVOID modified_write_va;
 extern PVOID modified_read_va;
 extern PVOID repurpose_zero_va;
 extern PVOID disc_space;
 
 extern BITMAP_TYPE disc_in_use;
+extern ULONG64 free_disc_spot_count;
 extern BITMAP_TYPE disc_in_use_end;
 
 extern PPFN pfn_base;
@@ -90,6 +92,11 @@ extern CRITICAL_SECTION repurpose_zero_va_lock;
 
 extern DWORD modified_write_thread(PVOID context);
 extern DWORD trim_thread(PVOID context);
+
+extern ULONG64 get_disc_index(VOID);
+extern ULONG64 get_disc_index_with_lock(VOID);
+extern VOID free_disc_space(ULONG64 disc_index);
+extern VOID free_disc_space_with_lock(ULONG64 disc_index);
 
 extern VOID initialize_system(VOID);
 extern VOID run_system(VOID);

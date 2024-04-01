@@ -125,6 +125,29 @@ VOID remove_from_list(PPFN pfn)
     check_list_integrity(listhead, NULL);
 }
 
+VOID remove_from_list_head(PPFN pfn, PPFN_LIST listhead)
+{
+    check_list_integrity(listhead, pfn);
+
+    PFN local = read_pfn(pfn);
+
+    // This removes the page from the list by erasing it from the chain of FLinks and blinks
+    PLIST_ENTRY prev_entry = local.entry.Blink;
+    PLIST_ENTRY next_entry = local.entry.Flink;
+
+    prev_entry->Flink = next_entry;
+    next_entry->Blink = prev_entry;
+
+    local.entry.Flink = NULL;
+    local.entry.Blink = NULL;
+
+    write_pfn(pfn, local);
+
+    listhead->num_pages--;
+
+    check_list_integrity(listhead, NULL);
+}
+
 // This removes the first element from a pfn list and returns it
 PPFN pop_from_list_helper(PPFN_LIST listhead)
 {
@@ -185,6 +208,40 @@ PPFN pop_from_list(PPFN_LIST listhead)
     }
 
     return taken_page;
+}
+
+// Returns a locked page
+PFN_LIST batch_pop_from_list(PPFN_LIST listhead, PPFN_LIST batch_list, ULONG64 batch_size)
+{
+    PPFN peeked_page;
+    PLIST_ENTRY flink_entry;
+
+    InitializeListHead(&batch_list->entry);
+    batch_list->num_pages = 0;
+
+    flink_entry = listhead->entry.Flink;
+
+    for (ULONG64 i = 0; i < batch_size; i++) {
+        // We don't expect this to happen, but if it does, we just return the batch list
+        if (flink_entry == &listhead->entry)
+        {
+            return *batch_list;
+        }
+
+        peeked_page = CONTAINING_RECORD(flink_entry, PFN, entry);
+        // Try to lock the pfn at the head
+        // TODO We now need to skip past the page if we can't lock it and try the next one
+        if (try_lock_pfn(peeked_page) == TRUE) {
+            flink_entry = flink_entry->Flink;
+            remove_from_list(peeked_page);
+            add_to_list(peeked_page, batch_list);
+        }
+        else {
+            flink_entry = flink_entry->Flink;
+        }
+    }
+
+    return *batch_list;
 }
 
 // This function simply adds a page to a specified list
