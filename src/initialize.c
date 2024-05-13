@@ -34,14 +34,13 @@ HANDLE system_start_event;
 
 // These are the locks used in our system
 CRITICAL_SECTION pte_region_locks[NUMBER_OF_PTE_REGIONS];
-CRITICAL_SECTION disc_in_use_lock;
 CRITICAL_SECTION modified_write_va_lock;
 CRITICAL_SECTION modified_read_va_lock;
 CRITICAL_SECTION repurpose_zero_va_lock;
 
 // These are page file handles
-HANDLE page_file;
-HANDLE page_file_mapping;
+//HANDLE page_file;
+//HANDLE page_file_mapping;
 
 // This is Windows-specific code to acquire a privilege.
 VOID GetPrivilege(VOID)
@@ -96,7 +95,6 @@ VOID GetPrivilege(VOID)
 // This function is used to initialize all the locks used in the system
 VOID initialize_locks(VOID)
 {
-    INITIALIZE_LOCK(disc_in_use_lock);
     INITIALIZE_LOCK(modified_write_va_lock);
     INITIALIZE_LOCK(modified_read_va_lock);
     INITIALIZE_LOCK(repurpose_zero_va_lock);
@@ -178,53 +176,50 @@ VOID initialize_threads(VOID)
 VOID initialize_page_file(ULONG64 num_disc_pages)
 {
     ULONG64 page_file_size_in_bytes;
-    ULONG64 bitmap_size_in_bytes;
 
-//    // Create the actual file
-//    page_file = CreateFile("pagefile.sys", GENERIC_READ | GENERIC_WRITE, 0,
-//                       NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL,
-//                       NULL);
-//    if (page_file == INVALID_HANDLE_VALUE) {
-//        fatal_error("create_page_file : could not create page file");
-//    }
-//
-//    // Set the size of the file
     page_file_size_in_bytes = num_disc_pages * PAGE_SIZE;
-//    if (SetFilePointer(page_file, page_file_size_in_bytes, NULL,
-//                       FILE_BEGIN) == INVALID_SET_FILE_POINTER) {
-//        fatal_error("create_page_file : could not set file pointer");
-//    }
-//    if (SetEndOfFile(page_file) == 0) {
-//        fatal_error("create_page_file : could not set end of file");
-//    }
-//
-//    // Create a file mapping for the page file
-//    page_file_mapping = CreateFileMapping(page_file, NULL, PAGE_READWRITE,
-//                                          0, 0, NULL);
-//    if (page_file_mapping == NULL) {
-//        printf("create_page_file : could not create file mapping %lu\n", GetLastError());
-//        fatal_error(NULL);
-//    }
-//
-//    (PVOID) MapViewOfFile(page_file_mapping, FILE_MAP_ALL_ACCESS,
-//                          0, 0, 0);
+
     // Allocates the memory for the page file
     disc_space = malloc(page_file_size_in_bytes);
     NULL_CHECK(disc_space, "create_page_file : could not create page file")
+}
+
+VOID initialize_pagefile_bitmap()
+{
+    // Get the number of pages on the disc and calculate the size of the bitmap
+    ULONG64 num_disc_pages = NUMBER_OF_DISC_PAGES;
+    ULONG64 bitmap_size_in_bytes = num_disc_pages / BITS_PER_BYTE;
 
     // Allocates the memory for the disc in use bitmap
     // This will remain in memory, as it is used to track which pages are in use and not part of the page file
 
-    // We want one bit per page, so our page file is num_disc_pages bits long
-    // We need this quantity in bytes to allocate memory for it, so we divide by BITS_PER_BYTE
-    bitmap_size_in_bytes = num_disc_pages / BITS_PER_BYTE;
-
+    // Initialize the bitmap
     disc_in_use = malloc(bitmap_size_in_bytes);
-    NULL_CHECK(disc_in_use, "create_page_file : could not allocate memory for disc in use array")
+    NULL_CHECK(disc_in_use, "initialize_pagefile_bitmap : could not allocate memory for disc in use array")
     memset(disc_in_use, EMPTY_UNIT, bitmap_size_in_bytes);
     free_disc_spot_count = num_disc_pages;
     disc_in_use_end = disc_in_use + bitmap_size_in_bytes;
     disc_page_count = num_disc_pages;
+
+    // Initialize the locks for the bitmap
+    // One for each page, so 4096 bytes * 8 bits per byte = 32768 bits
+    // We want to divide our num_disc_pages by this value to get the number of locks we need
+    ULONG64 page_size_in_bits = PAGE_SIZE * BITS_PER_BYTE;
+    ULONG64 num_locks = num_disc_pages / page_size_in_bits;
+    disc_in_use_locks = malloc(num_locks * sizeof(CRITICAL_SECTION));
+    for (ULONG64 i = 0; i < num_locks; i++)
+    {
+        INITIALIZE_LOCK(disc_in_use_locks[i]);
+    }
+
+    // Initialize the freed spaces array
+    freed_spaces = (ULONG64*) malloc(MAX_FREED_SPACES_SIZE * sizeof(ULONG64));
+    freed_spaces_size = 0;
+    INITIALIZE_LOCK(freed_spaces_lock);
+
+
+    // Initialize the last checked index
+    last_checked_index = 0;
 }
 
 // This function initializes our page lists
@@ -391,6 +386,7 @@ VOID initialize_system (VOID) {
     physical_page_handle = GetCurrentProcess();
 
     initialize_locks();
+
     initialize_events();
 
     initialize_pages();
@@ -400,6 +396,8 @@ VOID initialize_system (VOID) {
     initialize_pfn_metadata();
 
     initialize_page_file(NUMBER_OF_DISC_PAGES);
+
+    initialize_pagefile_bitmap();
 
     initialize_user_va_space();
 

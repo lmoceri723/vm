@@ -3,7 +3,6 @@
 #include "../include/structs.h"
 #include "../include/system.h"
 #include "../include/debug.h"
-#include "../include/userapp.h"
 
 // This function puts an individual page on the modified list given its PTE
 void trim(PPTE pte)

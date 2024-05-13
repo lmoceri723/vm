@@ -4,128 +4,7 @@
 
 #define MAX_MOD_BATCH                   256
 
-#define PAGE_WRITE_FUNCTION            write_pages_to_disc
-
-// This gets the index to the first available spot on the paging file
-ULONG64 get_disc_index(VOID)
-{
-    BITMAP_TYPE disc_spot;
-    BITMAP_CHUNK_TYPE spot_cluster;
-    ULONG64 index_in_cluster;
-
-    EnterCriticalSection(&disc_in_use_lock);
-
-    // Reads each char of our bit map and breaks when it finds a non-full char
-    disc_spot = disc_in_use;
-    while (disc_spot != disc_in_use_end)
-    {
-        if (*disc_spot != FULL_BITMAP_CHUNK)
-        {
-            break;
-        }
-        disc_spot++;
-    }
-
-    // In this case, no disc spots are available
-    // This returns to the modified_write_thread, which waits for a disc spot to be free
-    if (disc_spot == disc_in_use_end)
-    {
-        LeaveCriticalSection(&disc_in_use_lock);
-        return MAX_ULONG64;
-    }
-
-    // This reads in the char (byte) with an empty slot
-    spot_cluster = *disc_spot;
-    index_in_cluster = 0;
-    while (TRUE)
-    {
-        // First, we check if the leftmost bit is a zero
-        // We do this by comparing it to a one with LOGICAL AND
-        if ((spot_cluster & FULL_UNIT) == FALSE)
-        {
-            // Once we find this bit, we set it inside disc_spot and break in order to return the correct index
-            // We set this bit by using a LOGICAL OR (|=) to compare our char to a comparison value
-            // With a set bit at the index we want to set
-            // This sets our bit to one without changing other bits
-            // We then left shift this value by index_in_cluster bits
-            // In order to match the positions of our two bits
-            *disc_spot |= (FULL_UNIT << index_in_cluster);
-            break;
-        }
-        index_in_cluster++;
-        // This throws away the rightmost lowest bit, shifts every bit to the right, and the highest bit is set to zero
-        // This is safe to do as we know that one of the 8 bits we are checking will be a zero
-        // So we will never get to this pocket of zeroes at the end
-        // We use this to always have the bit we want to check as the first bit
-        spot_cluster = spot_cluster >> FULL_UNIT;
-    }
-
-    free_disc_spot_count--;
-
-    LeaveCriticalSection(&disc_in_use_lock);
-    // This returns the exact index inside disc_in_use that corresponds to the now occupied disc spot
-    return (disc_spot - disc_in_use) * BITS_PER_BYTE + index_in_cluster;
-}
-
-ULONG64 get_disc_index_with_lock(VOID)
-{
-    BITMAP_TYPE disc_spot;
-    BITMAP_CHUNK_TYPE spot_cluster;
-    ULONG64 index_in_cluster;
-
-    //EnterCriticalSection(&disc_in_use_lock);
-
-    // Reads each char of our bit map and breaks when it finds a non-full char
-    disc_spot = disc_in_use;
-    while (disc_spot != disc_in_use_end)
-    {
-        if (*disc_spot != FULL_BITMAP_CHUNK)
-        {
-            break;
-        }
-        disc_spot++;
-    }
-
-    // In this case, no disc spots are available
-    // This returns to the modified_write_thread, which waits for a disc spot to be free
-    if (disc_spot == disc_in_use_end)
-    {
-        LeaveCriticalSection(&disc_in_use_lock);
-        return MAX_ULONG64;
-    }
-
-    // This reads in the char (byte) with an empty slot
-    spot_cluster = *disc_spot;
-    index_in_cluster = 0;
-    while (TRUE)
-    {
-        // First, we check if the leftmost bit is a zero
-        // We do this by comparing it to a one with LOGICAL AND
-        if ((spot_cluster & FULL_UNIT) == FALSE)
-        {
-            // Once we find this bit, we set it inside disc_spot and break in order to return the correct index
-            // We set this bit by using a LOGICAL OR (|=) to compare our char to a comparison value
-            // With a set bit at the index we want to set
-            // This sets our bit to one without changing other bits
-            // We then left shift this value by index_in_cluster bits
-            // In order to match the positions of our two bits
-            *disc_spot |= (FULL_UNIT << index_in_cluster);
-            break;
-        }
-        index_in_cluster++;
-        // This throws away the rightmost lowest bit, shifts every bit to the right, and the highest bit is set to zero
-        // This is safe to do as we know that one of the 8 bits we are checking will be a zero
-        // So we will never get to this pocket of zeroes at the end
-        // We use this to always have the bit we want to check as the first bit
-        spot_cluster = spot_cluster >> FULL_UNIT;
-    }
-
-    free_disc_spot_count--;
-
-    //LeaveCriticalSection(&disc_in_use_lock);
-    // This returns the exact index inside disc_in_use that corresponds to the now occupied disc spot
-    return (disc_spot - disc_in_use) * BITS_PER_BYTE + index_in_cluster;
-}
+#define PAGE_WRITE_FUNCTION            write_page_to_disc
 
 BOOLEAN write_pages_to_disc(VOID)
 {
@@ -140,12 +19,12 @@ BOOLEAN write_pages_to_disc(VOID)
 
     // Lock the list of modified pages
     EnterCriticalSection(&modified_page_list.lock);
-    EnterCriticalSection(&disc_in_use_lock);
+    //EnterCriticalSection(&disc_in_use_lock);
 
     // Check the count of the list. If the list is empty, we can return
     if (modified_page_list.num_pages == 0 || free_disc_spot_count == 0)
     {
-        LeaveCriticalSection(&disc_in_use_lock);
+        //LeaveCriticalSection(&disc_in_use_lock);
         LeaveCriticalSection(&modified_page_list.lock);
         return FALSE;
     }
@@ -167,14 +46,16 @@ BOOLEAN write_pages_to_disc(VOID)
 
     for (ULONG64 i = 0; i < target_pages; i++)
     {
-        ULONG64 disc_index = get_disc_index_with_lock();
+        // TODO Figure out a locking solution here
+        //ULONG64 disc_index = get_disc_index_with_lock();
+        ULONG64 disc_index = get_disc_index();
         if (disc_index == MAX_ULONG64)
         {
             fatal_error("write_pages_to_disc : could not get a disc index when we should have been able to");
         }
         disc_indices[i] = disc_index;
     }
-    LeaveCriticalSection(&disc_in_use_lock);
+    //LeaveCriticalSection(&disc_in_use_lock);
 
     // This could return a frame number array
     batch_pop_from_list(&modified_page_list, &batch_list, target_pages);
@@ -182,14 +63,15 @@ BOOLEAN write_pages_to_disc(VOID)
     // Call free_disc_space on the last (target_pages - batch_list.num_pages) disc_indices
     if (batch_list.num_pages != target_pages)
     {
-        EnterCriticalSection(&disc_in_use_lock);
+        //EnterCriticalSection(&disc_in_use_lock);
 
         for (ULONG64 i = batch_list.num_pages; i < target_pages; i++)
         {
-            free_disc_space_with_lock(disc_indices[i]);
+            // TODO locking here too
+            free_disc_index(disc_indices[i], FALSE);
         }
 
-        LeaveCriticalSection(&disc_in_use_lock);
+        //LeaveCriticalSection(&disc_in_use_lock);
     }
 
     LeaveCriticalSection(&modified_page_list.lock);
@@ -199,7 +81,6 @@ BOOLEAN write_pages_to_disc(VOID)
     {
         return FALSE;
     }
-
 
     // Get the frame numbers of the pages
     ULONG64 frame_numbers[MAX_MOD_BATCH];
@@ -244,7 +125,7 @@ BOOLEAN write_pages_to_disc(VOID)
             local.flags.modified = 0;
             write_pfn(pfn, local);
 
-            free_disc_space(disc_indices[i]);
+            free_disc_index(disc_indices[i], FALSE);
         }
     }
 

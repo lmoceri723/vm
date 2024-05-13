@@ -10,7 +10,8 @@ include_directories(include)
 file(GLOB SOURCES "src/*.c")
 
 # Configure executable
-add_executable(vm ${SOURCES})
+add_executable(vm ${SOURCES}
+        src/pagefile.c)
 
 # Configure installation
 install(TARGETS vm DESTINATION bin)

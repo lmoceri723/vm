@@ -21,7 +21,6 @@
 
 PPFN get_free_page(VOID);
 PPFN read_page_on_disc(PPTE pte, PPFN free_page);
-VOID free_disc_space(ULONG64 disc_index);
 
 ULONG_PTR virtual_address_size;
 ULONG_PTR physical_page_count;
@@ -115,88 +114,8 @@ PPFN read_page_on_disc(PPTE pte, PPFN free_page)
     LeaveCriticalSection(&modified_read_va_lock);
 
     // Set the bit at disc_index in disc in use to be 0 to reuse the disc spot
-    free_disc_space(pte->disc_format.disc_index);
+    free_disc_index(pte->disc_format.disc_index, FALSE);
     return free_page;
-}
-
-VOID free_disc_space(ULONG64 disc_index)
-{
-    BITMAP_TYPE disc_spot;
-    BITMAP_CHUNK_TYPE spot_cluster;
-    ULONG64 index_in_cluster;
-
-    EnterCriticalSection(&disc_in_use_lock);
-
-    // This grabs the actual char (byte) that holds the bit we need to change
-    disc_spot = disc_in_use + disc_index / BITMAP_CHUNK_SIZE_IN_BITS;
-    spot_cluster = *disc_spot;
-
-    // This gets the bit's index inside the char
-    index_in_cluster = disc_index % BITMAP_CHUNK_SIZE_IN_BITS;
-
-    // We set the bit to be zero by comparing it using a LOGICAL AND (&=) with all ones,
-    // Except for a zero at the place we want to set as zero.
-    // We compute this comparison value by taking one positive bit (1)
-    // And left-shifting (<<) it by index_in_cluster bits to its corresponding position in the char
-    // If the position is two, then our 1 would become 001. Five more bits would then be added to the end
-    // By the compiler in order to match the size of the char it is being compared to (00100000)
-    // Then we flip these bits using the (~) operator to get our comparison value
-
-    // Example: (actual byte) 11011101 &= 11111011 (comparison value)
-    // Result: 11011(0)01
-    // The zero surrounded by parenthesis is the bit we change; all others are preserved
-
-    // This asserts that the disc space is not already free
-    assert(spot_cluster & (FULL_UNIT << (index_in_cluster)))
-
-    spot_cluster &= ~(FULL_UNIT << (index_in_cluster));
-
-    // Write the char back out after the bit has been changed
-    *disc_spot = spot_cluster;
-    free_disc_spot_count++;
-
-    LeaveCriticalSection(&disc_in_use_lock);
-    SetEvent(disc_spot_available_event);
-}
-
-VOID free_disc_space_with_lock(ULONG64 disc_index)
-{
-    BITMAP_TYPE disc_spot;
-    BITMAP_CHUNK_TYPE spot_cluster;
-    ULONG64 index_in_cluster;
-
-    //EnterCriticalSection(&disc_in_use_lock);
-
-    // This grabs the actual char (byte) that holds the bit we need to change
-    disc_spot = disc_in_use + disc_index / BITMAP_CHUNK_SIZE_IN_BITS;
-    spot_cluster = *disc_spot;
-
-    // This gets the bit's index inside the char
-    index_in_cluster = disc_index % BITMAP_CHUNK_SIZE_IN_BITS;
-
-    // We set the bit to be zero by comparing it using a LOGICAL AND (&=) with all ones,
-    // Except for a zero at the place we want to set as zero.
-    // We compute this comparison value by taking one positive bit (1)
-    // And left-shifting (<<) it by index_in_cluster bits to its corresponding position in the char
-    // If the position is two, then our 1 would become 001. Five more bits would then be added to the end
-    // By the compiler in order to match the size of the char it is being compared to (00100000)
-    // Then we flip these bits using the (~) operator to get our comparison value
-
-    // Example: (actual byte) 11011101 &= 11111011 (comparison value)
-    // Result: 11011(0)01
-    // The zero surrounded by parenthesis is the bit we change; all others are preserved
-
-    // This asserts that the disc space is not already free
-    assert(spot_cluster & (FULL_UNIT << (index_in_cluster)))
-
-    spot_cluster &= ~(FULL_UNIT << (index_in_cluster));
-
-    // Write the char back out after the bit has been changed
-    *disc_spot = spot_cluster;
-    free_disc_spot_count++;
-
-    //LeaveCriticalSection(&disc_in_use_lock);
-    SetEvent(disc_spot_available_event);
 }
 
 // This is where we handle any access or fault of a page
@@ -321,7 +240,7 @@ VOID page_fault_handler(PVOID arbitrary_va, PFAULT_STATS stats)
             EnterCriticalSection(&standby_page_list.lock);
             remove_from_list(pfn);
             // Freeing the space here and updating the pfn lower down
-            free_disc_space(pfn->disc_index);
+            free_disc_index(pfn->disc_index, FALSE);
             LeaveCriticalSection(&standby_page_list.lock);
         }
     }

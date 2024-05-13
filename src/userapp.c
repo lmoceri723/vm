@@ -7,6 +7,22 @@
 #pragma ide diagnostic ignored "UnreachableCode"
 #pragma comment(lib, "advapi32.lib")
 
+
+// TODO ISSUES
+// Get disc index
+// Aging and Trimming - where is he walking from and how far should he walk
+// is he keeping a good differentiated set of ages
+/*
+ [10:42 PM] Landy Wang
+The meeting was about aging and trimming pages in a virtual memory subsystem.
+ The participants discussed the problem areas of high cycles consumption by the program,
+ which were mainly caused by aging for 45% and modified writing for 45%.
+ They also looked at an excerpt of a trace to analyze the issue.
+ They agreed to look at the spots in the page file array and the single lock for tomorrow.
+
+ */
+
+
 // This corresponds to how many times a random va will be written to in our test
 // We are using MB(x) as a placeholder for 2^20, the purpose of this is just to get a large number
 // This number represents the number of times we will access a random virtual address in our range
@@ -55,10 +71,16 @@ VOID full_virtual_memory_test(VOID) {
 
     virtual_address_size_in_pages = num_bytes / PAGE_SIZE;
 
+    PULONG_PTR p_end = p + (virtual_address_size_in_pages * PAGE_SIZE) / sizeof(ULONG_PTR);
+
+    ULONG64 slice_size = virtual_address_size_in_pages / NUMBER_OF_FAULTING_THREADS;
+    ULONG64 slice_start = slice_size * thread_index;
+
     // This is where the test is actually ran
+    arbitrary_va = p + slice_start;
     start_time = GetTickCount();
     ULONG64 i = 0;
-    for (ULONG64 j = 0; j < 2 * NUM_ITERATIONS; ++j) {
+    for (ULONG64 j = 0; j < ((ULONG64) 2) * NUM_ITERATIONS; ++j) {
         while (TRUE) {
             // If we have never accessed the surrounding page size (4K)
             // portion, the operating system will receive a page fault
@@ -72,8 +94,6 @@ VOID full_virtual_memory_test(VOID) {
 
             // This computes a random virtual address within our range
 
-
-
             // Take the last 3 bits in get tick count
             //  If the low 3 bits are less than 4, get the next address instead of getting a random address
 
@@ -81,14 +101,26 @@ VOID full_virtual_memory_test(VOID) {
 //        random_number %= virtual_address_size_in_pages;
 //
 //        arbitrary_va = p + (random_number * PAGE_SIZE) / sizeof(ULONG_PTR);
-            i++;
+//            i++;
+//
+//            if (i >= virtual_address_size_in_pages)
+//            {
+//                i = slice_start % virtual_address_size_in_pages;
+//            }
+//
+//            arbitrary_va = p + slice_start + (i * PAGE_SIZE) / sizeof(ULONG_PTR);
 
-            if (i >= virtual_address_size_in_pages)
+            if (i % 10000 == 0)
             {
-                i=0;
+                printf(".");
             }
-            arbitrary_va = p + (i * PAGE_SIZE) / sizeof(ULONG_PTR);
 
+            arbitrary_va = arbitrary_va + PAGE_SIZE / sizeof(ULONG_PTR);
+
+            if (arbitrary_va >= p_end)
+            {
+                arbitrary_va = p;
+            }
 
             // Write the virtual address into each page
             page_faulted = FALSE;
@@ -110,7 +142,10 @@ VOID full_virtual_memory_test(VOID) {
                     }
 
                     // We are trying to write the VA as a number into the page contents associated with that VA
-                    *arbitrary_va = (ULONG_PTR) arbitrary_va;
+                    if ((PULONG_PTR) local != arbitrary_va) {
+                        *arbitrary_va = (ULONG_PTR) arbitrary_va;
+                    }
+
                     page_faulted = FALSE;
                 }
                 __except(EXCEPTION_EXECUTE_HANDLER)
@@ -122,6 +157,7 @@ VOID full_virtual_memory_test(VOID) {
                 // This is because we want to reset the age of a PTE when its VA is accessed
                 // This is done in the handler, as is referred to in this program as a fake fault
                 page_fault_handler(arbitrary_va, stats);
+                i++;
             } while (TRUE == page_faulted);
         }
     }

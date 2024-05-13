@@ -22,7 +22,7 @@
 #define MAX_ULONG64                              ((ULONG64) - 1) // 0xFFFFFFFFFFFFFFFF
 #define BITS_PER_BYTE                            8
 
-#define BIG_BITMAP                               0
+#define BIG_BITMAP                               1
 #if BIG_BITMAP
 #define BITMAP_TYPE                              PULONG64
 #define BITMAP_CHUNK_TYPE                        ULONG64
@@ -40,13 +40,14 @@
 #define EMPTY_UNIT                               0
 #define FULL_UNIT                                1
 #endif
+#define MAX_FREED_SPACES_SIZE                    8192
 
 #define PTE_REGION_SIZE                          512
 
 // With a region size of 256, we have 1MB of virtual memory per region
 #define NUMBER_OF_PTE_REGIONS                    ((NUMBER_OF_PHYSICAL_PAGES + NUMBER_OF_DISC_PAGES) / PTE_REGION_SIZE)
 
-#define SPIN_COUNTS                              0
+#define SPIN_COUNTS                              1
 #if SPIN_COUNTS
 #define SPIN_COUNT                               0xFFFFFF
 #define INITIALIZE_LOCK(x)                       InitializeCriticalSectionAndSpinCount(&x, SPIN_COUNT)
@@ -69,6 +70,14 @@ extern PVOID modified_read_va;
 extern PVOID repurpose_zero_va;
 extern PVOID disc_space;
 
+extern PCRITICAL_SECTION disc_in_use_locks;
+
+extern ULONG64* freed_spaces;
+extern CRITICAL_SECTION freed_spaces_lock;
+extern ULONG64 freed_spaces_size;
+
+extern ULONG64 last_checked_index;
+
 extern BITMAP_TYPE disc_in_use;
 extern ULONG64 free_disc_spot_count;
 extern BITMAP_TYPE disc_in_use_end;
@@ -85,7 +94,6 @@ extern HANDLE system_exit_event;
 extern HANDLE system_start_event;
 
 extern CRITICAL_SECTION pte_region_locks[NUMBER_OF_PTE_REGIONS];
-extern CRITICAL_SECTION disc_in_use_lock;
 extern CRITICAL_SECTION modified_write_va_lock;
 extern CRITICAL_SECTION modified_read_va_lock;
 extern CRITICAL_SECTION repurpose_zero_va_lock;
@@ -94,9 +102,7 @@ extern DWORD modified_write_thread(PVOID context);
 extern DWORD trim_thread(PVOID context);
 
 extern ULONG64 get_disc_index(VOID);
-extern ULONG64 get_disc_index_with_lock(VOID);
-extern VOID free_disc_space(ULONG64 disc_index);
-extern VOID free_disc_space_with_lock(ULONG64 disc_index);
+extern VOID free_disc_index(ULONG64 disc_index, BOOLEAN holds_locks);
 
 extern VOID initialize_system(VOID);
 extern VOID run_system(VOID);
