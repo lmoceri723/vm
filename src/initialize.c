@@ -4,6 +4,7 @@
 #include "../include/macros.h"
 #include "../include/structs.h"
 #include "../include/system.h"
+#include "../include/pagefile.h"
 #include "../include/debug.h"
 
 #pragma comment(lib, "advapi32.lib")
@@ -18,8 +19,8 @@ ULONG faulting_thread_ids[NUMBER_OF_FAULTING_THREADS];
 FAULT_STATS fault_stats[NUMBER_OF_FAULTING_THREADS];
 
 // These are handles to our system threads, our trimming/modified-writing threads
-HANDLE system_handles[NUMBER_OF_SYSTEM_THREADS];
-ULONG system_thread_ids[NUMBER_OF_SYSTEM_THREADS];
+HANDLE system_handles[NUMBER_OF_FAULTING_THREADS];
+ULONG system_thread_ids[NUMBER_OF_FAULTING_THREADS];
 
 HANDLE physical_page_handle;
 
@@ -180,46 +181,30 @@ VOID initialize_page_file(ULONG64 num_disc_pages)
     page_file_size_in_bytes = num_disc_pages * PAGE_SIZE;
 
     // Allocates the memory for the page file
-    disc_space = malloc(page_file_size_in_bytes);
-    NULL_CHECK(disc_space, "create_page_file : could not create page file")
+    page_file = malloc(page_file_size_in_bytes);
+    NULL_CHECK(page_file, "create_page_file : could not create page file")
 }
 
-VOID initialize_pagefile_bitmap()
+VOID initialize_page_file_bitmap(VOID)
 {
     // Get the number of pages on the disc and calculate the size of the bitmap
-    ULONG64 num_disc_pages = NUMBER_OF_DISC_PAGES;
-    ULONG64 bitmap_size_in_bytes = num_disc_pages / BITS_PER_BYTE;
 
     // Allocates the memory for the disc in use bitmap
     // This will remain in memory, as it is used to track which pages are in use and not part of the page file
 
     // Initialize the bitmap
-    disc_in_use = malloc(bitmap_size_in_bytes);
-    NULL_CHECK(disc_in_use, "initialize_pagefile_bitmap : could not allocate memory for disc in use array")
-    memset(disc_in_use, EMPTY_UNIT, bitmap_size_in_bytes);
-    free_disc_spot_count = num_disc_pages;
-    disc_in_use_end = disc_in_use + bitmap_size_in_bytes;
-    disc_page_count = num_disc_pages;
+    page_file_bitmap = malloc(BITMAP_SIZE_IN_BYTES);
+    NULL_CHECK(page_file_bitmap, "malloc failed to allocate memory for the page file bitmap");
+    memset(page_file_bitmap, 0, BITMAP_SIZE_IN_BYTES);
+    page_file_bitmap_end = page_file_bitmap + BITMAP_SIZE_IN_BYTES / sizeof (*page_file_bitmap);
 
-    // Initialize the locks for the bitmap
-    // One for each page, so 4096 bytes * 8 bits per byte = 32768 bits
-    // We want to divide our num_disc_pages by this value to get the number of locks we need
-    ULONG64 page_size_in_bits = PAGE_SIZE * BITS_PER_BYTE;
-    ULONG64 num_locks = num_disc_pages / page_size_in_bits;
-    disc_in_use_locks = malloc(num_locks * sizeof(CRITICAL_SECTION));
-    for (ULONG64 i = 0; i < num_locks; i++)
-    {
-        INITIALIZE_LOCK(disc_in_use_locks[i]);
-    }
+    free_disc_spot_count = BITMAP_SIZE_IN_BITS;
 
     // Initialize the freed spaces array
-    freed_spaces = (ULONG64*) malloc(MAX_FREED_SPACES_SIZE * sizeof(ULONG64));
+    freed_spaces = (PULONG64) malloc(MAX_FREED_SPACES_SIZE * sizeof(ULONG64));
+    NULL_CHECK(freed_spaces, "malloc failed to allocate memory for the freed spaces array");
     freed_spaces_size = 0;
-    INITIALIZE_LOCK(freed_spaces_lock);
 
-
-    // Initialize the last checked index
-    last_checked_index = 0;
 }
 
 // This function initializes our page lists
@@ -358,8 +343,11 @@ VOID initialize_pages()
                NUMBER_OF_PHYSICAL_PAGES);
     }
 
+    // TODO just find the highest frame number and the minumum frame number
+    // Subtract from the pointer
     // This sorts the physical page numbers in ascending order
-    qsort(physical_page_numbers, physical_page_count, sizeof(ULONG_PTR), compare);
+    qsort(physical_page_numbers, physical_page_count, sizeof(ULONG_PTR),
+          compare);
 }
 
 // This is a helper function for qsort
@@ -397,7 +385,7 @@ VOID initialize_system (VOID) {
 
     initialize_page_file(NUMBER_OF_DISC_PAGES);
 
-    initialize_pagefile_bitmap();
+    initialize_page_file_bitmap();
 
     initialize_user_va_space();
 
@@ -416,15 +404,15 @@ VOID deinitialize_system (VOID)
     // We need to close all system threads and wait for them to exit before proceeding
     // This happens so that no thread tries to access a data structure that we have freed
     SetEvent(system_exit_event);
-    WaitForMultipleObjects(NUMBER_OF_SYSTEM_THREADS, system_handles, TRUE, INFINITE);
+    WaitForMultipleObjects(NUMBER_OF_FAULTING_THREADS, system_handles, TRUE, INFINITE);
 
     // Now that we're done with our memory, we are able to free it
     free(pte_base);
     VirtualFree(modified_read_va, PAGE_SIZE, MEM_RELEASE);
     VirtualFree(modified_write_va, PAGE_SIZE, MEM_RELEASE);
     VirtualFree(va_base, virtual_address_size, MEM_RELEASE);
-    free(disc_in_use);
-    free(disc_space);
+    free(page_file_bitmap);
+    free(page_file);
 
     VirtualFree(pfn_base, physical_page_numbers[physical_page_count - 1] * sizeof(PFN),
                 MEM_RELEASE);

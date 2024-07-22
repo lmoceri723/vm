@@ -4,8 +4,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <Windows.h>
+#include "hardware.h"
 
-#define PAGE_SIZE                   4096
+#define FREE 0
+#define STANDBY 1
+// The zeroed state is currently unimplemented
+//#define ZEROED 2
+#define MODIFIED 3
+#define ACTIVE 4
+
+#define PTE_REGION_SIZE                          512
+
+// With a region size of 512, we have 2MB of virtual memory per region
+#define NUMBER_OF_PTE_REGIONS                    ((NUMBER_OF_PHYSICAL_PAGES + NUMBER_OF_DISC_PAGES) / PTE_REGION_SIZE)
 
 // We know that a PTE is in valid format if the valid bit is set
 typedef struct {

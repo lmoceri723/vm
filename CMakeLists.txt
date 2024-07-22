@@ -11,7 +11,7 @@ file(GLOB SOURCES "src/*.c")
 
 # Configure executable
 add_executable(vm ${SOURCES}
-        src/pagefile.c)
+        include/pagefile.h)
 
 # Configure installation
 install(TARGETS vm DESTINATION bin)

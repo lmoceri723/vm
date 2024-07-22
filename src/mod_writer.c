@@ -104,7 +104,7 @@ BOOLEAN write_pages_to_disc(VOID)
     for (ULONG64 i = 0; i < target_pages; i++)
     {
         PVOID actual_space;
-        actual_space = (PVOID) ((ULONG_PTR) disc_space + (disc_indices[i] * PAGE_SIZE));
+        actual_space = (PVOID) ((ULONG_PTR) page_file + (disc_indices[i] * PAGE_SIZE));
 
         memcpy(actual_space, modified_write_va, PAGE_SIZE);
 
@@ -197,7 +197,7 @@ BOOLEAN write_page_to_disc(VOID)
 
     // This computes the actual address of where we want to write the page contents in the paging file and copies it
     PVOID actual_space;
-    actual_space = (PVOID) ((ULONG_PTR) disc_space + (disc_index * PAGE_SIZE));
+    actual_space = (PVOID) ((ULONG_PTR) page_file + (disc_index * PAGE_SIZE));
 
     memcpy(actual_space, modified_write_va, PAGE_SIZE);
 

@@ -30,11 +30,7 @@ PVOID va__end;
 PVOID modified_write_va;
 PVOID modified_read_va;
 PVOID repurpose_zero_va;
-PVOID disc_space;
-
-BITMAP_TYPE disc_in_use;
-ULONG64 free_disc_spot_count;
-BITMAP_TYPE disc_in_use_end;
+PVOID page_file;
 
 // This is how we get pages for new virtual addresses as well as old ones only exist on the paging file
 PPFN get_free_page(VOID) {
@@ -106,7 +102,7 @@ PPFN read_page_on_disc(PPTE pte, PPFN free_page)
     map_pages(modified_read_va, 1, &frame_number);
 
     // This would be a disc driver that does this read and write in a real operating system
-    PVOID source = (PVOID) ((ULONG_PTR) disc_space + (pte->disc_format.disc_index * PAGE_SIZE));
+    PVOID source = (PVOID) ((ULONG_PTR) page_file + (pte->disc_format.disc_index * PAGE_SIZE));
     memcpy(modified_read_va, source, PAGE_SIZE);
 
     unmap_pages(modified_read_va, 1);

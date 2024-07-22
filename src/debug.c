@@ -1,4 +1,5 @@
 #include "../include/debug.h"
+volatile ULONG LM = 0;
 
 // Checks the integrity of a pfn list
 // This is very helpful to use when debugging but very expensive
@@ -12,6 +13,9 @@ VOID check_list_integrity(PPFN_LIST listhead, PPFN match_pfn)
     ULONG count;
     ULONG matched;
 
+    if (LM == 0) {
+        return;
+    }
     // This makes sure that this list is actually owned by the calling thread
     if (listhead->lock.OwningThread == NULL)
     {

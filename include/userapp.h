@@ -3,13 +3,8 @@
 #ifndef VM_USERAPP_H
 #define VM_USERAPP_H
 #include <stdio.h>
-#include <stdlib.h>
 #include <Windows.h>
-
-#define PAGE_SIZE                   4096
-#define NUMBER_OF_FAULTING_THREADS  8
-#define MB(x)                       ((x) * 1024 * 1024)
-#define GB(x)                       ((x) * 1024 * 1024 * 1024)
+#include "hardware.h"
 
 
 typedef struct {
@@ -25,11 +20,11 @@ extern ULONG faulting_thread_ids[NUMBER_OF_FAULTING_THREADS];
 extern HANDLE system_start_event;
 extern HANDLE system_exit_event;
 
+extern ULONG64 num_trims;
+
 extern PVOID allocate_memory(PULONG_PTR num_bytes);
 // Eventually an API I code will do this instead of directly passing this to the page fault handler
 extern VOID page_fault_handler(PVOID arbitrary_va, PFAULT_STATS stats);
+
 extern DWORD faulting_thread(PVOID context);
-
-extern ULONG64 num_trims;
-
 #endif //VM_USERAPP_H

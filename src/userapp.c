@@ -9,7 +9,6 @@
 
 
 // TODO ISSUES
-// Get disc index
 // Aging and Trimming - where is he walking from and how far should he walk
 // is he keeping a good differentiated set of ages
 /*
@@ -27,16 +26,17 @@ The meeting was about aging and trimming pages in a virtual memory subsystem.
 // We are using MB(x) as a placeholder for 2^20, the purpose of this is just to get a large number
 // This number represents the number of times we will access a random virtual address in our range
 // MB has no reflection on the actual size of the memory we are using
-#define NUM_ITERATIONS  GB(1) / 100
+#define VA_SIZE_IN_PAGES  ((ULONG64) (NUMBER_OF_PHYSICAL_PAGES + NUMBER_OF_DISC_PAGES))
+#define NUM_PASSTHROUGHS  ((ULONG64) 2)
 
 ULONG64 num_trims = 0;
 
 VOID full_virtual_memory_test(VOID) {
 
     PULONG_PTR arbitrary_va;
-    ULONG random_number;
+    // ULONG random_number;
     BOOL page_faulted;
-    PULONG_PTR p;
+    PULONG_PTR pointer;
     ULONG_PTR num_bytes;
     ULONG_PTR local;
 
@@ -67,21 +67,22 @@ VOID full_virtual_memory_test(VOID) {
 
     // This replaces a malloc call in our system
     // Right now, we are just giving a set amount to the caller
-    p = (PULONG_PTR) allocate_memory(&num_bytes);
+    pointer = (PULONG_PTR) allocate_memory(&num_bytes);
 
     virtual_address_size_in_pages = num_bytes / PAGE_SIZE;
 
-    PULONG_PTR p_end = p + (virtual_address_size_in_pages * PAGE_SIZE) / sizeof(ULONG_PTR);
+    PULONG_PTR p_end = pointer + (virtual_address_size_in_pages * PAGE_SIZE) / sizeof(ULONG_PTR);
 
     ULONG64 slice_size = virtual_address_size_in_pages / NUMBER_OF_FAULTING_THREADS;
     ULONG64 slice_start = slice_size * thread_index;
 
     // This is where the test is actually ran
-    arbitrary_va = p + slice_start;
+    arbitrary_va = pointer + slice_start;
     start_time = GetTickCount();
-    ULONG64 i = 0;
-    for (ULONG64 j = 0; j < ((ULONG64) 2) * NUM_ITERATIONS; ++j) {
-        while (TRUE) {
+
+    for (ULONG64 passthrough = 0; passthrough < NUM_PASSTHROUGHS; passthrough++) {
+
+        for (ULONG64 rep = 0; rep < VA_SIZE_IN_PAGES; ++rep) {
             // If we have never accessed the surrounding page size (4K)
             // portion, the operating system will receive a page fault
             // from the CPU and proceed to obtain a physical page and
@@ -97,30 +98,25 @@ VOID full_virtual_memory_test(VOID) {
             // Take the last 3 bits in get tick count
             //  If the low 3 bits are less than 4, get the next address instead of getting a random address
 
-//        random_number = (GetTickCount() + i * (GetCurrentThreadId())) << 12;
-//        random_number %= virtual_address_size_in_pages;
-//
-//        arbitrary_va = p + (random_number * PAGE_SIZE) / sizeof(ULONG_PTR);
-//            i++;
-//
-//            if (i >= virtual_address_size_in_pages)
-//            {
-//                i = slice_start % virtual_address_size_in_pages;
-//            }
-//
-//            arbitrary_va = p + slice_start + (i * PAGE_SIZE) / sizeof(ULONG_PTR);
+            //        random_number = (GetTickCount() + i * (GetCurrentThreadId())) << 12;
+            //        random_number %= virtual_address_size_in_pages;
+            //
+            //        arbitrary_va = p + (random_number * PAGE_SIZE) / sizeof(ULONG_PTR);
+            //            i++;
+            //
+            //            if (i >= virtual_address_size_in_pages)
+            //            {
+            //                i = slice_start % virtual_address_size_in_pages;
+            //            }
+            //
+            //            arbitrary_va = p + slice_start + (i * PAGE_SIZE) / sizeof(ULONG_PTR);
 
-            if (i % 10000 == 0)
-            {
+            if (rep % 10000 == 0) {
                 printf(".");
             }
 
-            arbitrary_va = arbitrary_va + PAGE_SIZE / sizeof(ULONG_PTR);
-
-            if (arbitrary_va >= p_end)
-            {
-                arbitrary_va = p;
-            }
+            // Calculate arbitrary VA from rep
+            arbitrary_va = pointer + (rep * PAGE_SIZE) / sizeof(ULONG_PTR);
 
             // Write the virtual address into each page
             page_faulted = FALSE;
@@ -157,7 +153,7 @@ VOID full_virtual_memory_test(VOID) {
                 // This is because we want to reset the age of a PTE when its VA is accessed
                 // This is done in the handler, as is referred to in this program as a fake fault
                 page_fault_handler(arbitrary_va, stats);
-                i++;
+
             } while (TRUE == page_faulted);
         }
     }
@@ -167,10 +163,11 @@ VOID full_virtual_memory_test(VOID) {
     time_elapsed = end_time - start_time;
 
     // Consolidate into one print statement
-    printf("\nfull_virtual_memory_test : thread %lu finished accessing %d random virtual addresses in %lu ms (%f s)\n"
+    printf("\nfull_virtual_memory_test : thread %lu finished accessing %llu passthroughs "
+           "of the virtual address space (%llu addresses total) in %lu ms (%f s)\n"
            "full_virtual_memory_test : thread %lu took %llu faults and %llu fake faults\n"
            "full_virtual_memory_test : thread %lu took %llu first accesses and %llu reaccesses\n\n",
-           thread_index, NUM_ITERATIONS, time_elapsed, time_elapsed / 1000.0,
+           thread_index, NUM_PASSTHROUGHS, NUM_PASSTHROUGHS * VA_SIZE_IN_PAGES, time_elapsed, time_elapsed / 1000.0,
            thread_index, stats->num_faults, stats->num_fake_faults,
            thread_index, stats->num_first_accesses, stats->num_reaccesses);
 
