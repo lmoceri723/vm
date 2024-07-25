@@ -1,11 +1,12 @@
 #ifndef VM_DEBUG_H
 #define VM_DEBUG_H
 #include "structs.h"
+#include "pfn_lists.h"
 
 #define NULL_CHECK(x, msg)       if (x == NULL) {fatal_error(msg); }
 
 // Creates a central switch to turn debug mode on/off
-#define DBG                1
+#define DBG                0
 
 #if DBG
 #define assert(x)       if (!(x)) { printf ("Assertion failed: %s, file %s, line %d\n", #x, __FILE__, __LINE__); DebugBreak(); }
@@ -22,7 +23,45 @@
 #define INITIALIZE_LOCK(x)                       InitializeCriticalSection(&x)
 #endif
 
+#define READWRITE_LOGGING                        1
+#if READWRITE_LOGGING
+
+#define LOG_SIZE                                 32768
+
+#define IS_A_FRAME_NUMBER                        0
+#define IS_A_PTE                                 1
+
+#define READ                                     0
+#define WRITE                                    1
+#define LOCK                                     2
+#define TRY_SUCCESS                              3
+#define TRY_FAIL                                 4
+#define UNLOCK                                   5
+#define INSERT_HEAD                              6
+#define INSERT_TAIL                              7
+#define REMOVE_MIDDLE                            8
+#define REMOVE_HEAD                              9
+#define REMOVE_TAIL                              10
+
+typedef struct {
+    ULONG entry_index;
+    PPTE pte_ptr;
+    PTE pte_val;
+    PVOID virtual_address;
+    PPFN pfn_ptr;
+    PFN pfn_val;
+    ULONG64 frame_number;
+    ULONG operation:4;
+    PVOID stack_trace[8];
+    ULONG64 accessing_thread_id;
+} READWRITE_LOG_ENTRY;
+
+extern READWRITE_LOG_ENTRY page_log[LOG_SIZE];
+extern LONG64 readwrite_log_index;
+#endif
+
 extern VOID check_list_integrity(PPFN_LIST listhead, PPFN match_pfn);
+extern VOID log_access(ULONG is_pte, PVOID ppte_or_fn, ULONG operation);
 // LM TODO move these to a better place
 extern VOID fatal_error(char *msg);
 extern VOID map_pages(PVOID user_va, ULONG_PTR page_count, PULONG_PTR page_array);

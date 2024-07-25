@@ -1,7 +1,6 @@
 #include "../include/structs.h"
 #include "../include/system.h"
 #include "../include/debug.h"
-#include "../include/macros.h"
 
 PPTE pte_base;
 PPTE pte_end;
@@ -9,10 +8,6 @@ PPTE pte_end;
 PPFN pfn_base;
 PPFN pfn_end;
 ULONG_PTR highest_frame_number;
-
-PFN_LIST free_page_list;
-PFN_LIST modified_page_list;
-PFN_LIST standby_page_list;
 
 // These functions convert between matching linear structures (pte and va) (pfn and frame number)
 PPTE pte_from_va(PVOID virtual_address)
@@ -78,201 +73,6 @@ ULONG64 frame_number_from_pfn(PPFN pfn)
     return pfn - pfn_base;
 }
 
-// Removes the pfn from the list corresponding to its state
-VOID remove_from_list(PPFN pfn)
-{
-    PPFN_LIST listhead;
-    PLIST_ENTRY prev_entry;
-    PLIST_ENTRY next_entry;
-    PFN local;
-
-    // Finds the list based on the page's state
-    // There is no active state, and we never remove free pages in this way
-    // So we know that this is either a modified or standby page
-    if (pfn->flags.state == MODIFIED) {
-
-        listhead = &modified_page_list;
-
-    } else if (pfn->flags.state == STANDBY) {
-
-        // This is on the standby list
-        listhead = &standby_page_list;
-
-    } else {
-        fatal_error("remove_from_list : tried to remove a page from list when it was on none");
-        return;
-    }
-
-    // Checks the integrity of the list before and after the remove operation
-    check_list_integrity(listhead, pfn);
-
-    local = read_pfn(pfn);
-
-    // This removes the page from the list by erasing it from the chain of FLinks and blinks
-    prev_entry = local.entry.Blink;
-    next_entry = local.entry.Flink;
-
-    prev_entry->Flink = next_entry;
-    next_entry->Blink = prev_entry;
-
-    local.entry.Flink = NULL;
-    local.entry.Blink = NULL;
-
-    write_pfn(pfn, local);
-
-    listhead->num_pages--;
-
-    check_list_integrity(listhead, NULL);
-}
-
-VOID remove_from_list_head(PPFN pfn, PPFN_LIST listhead)
-{
-    check_list_integrity(listhead, pfn);
-
-    PFN local = read_pfn(pfn);
-
-    // This removes the page from the list by erasing it from the chain of FLinks and blinks
-    PLIST_ENTRY prev_entry = local.entry.Blink;
-    PLIST_ENTRY next_entry = local.entry.Flink;
-
-    prev_entry->Flink = next_entry;
-    next_entry->Blink = prev_entry;
-
-    local.entry.Flink = NULL;
-    local.entry.Blink = NULL;
-
-    write_pfn(pfn, local);
-
-    listhead->num_pages--;
-
-    check_list_integrity(listhead, NULL);
-}
-
-// This removes the first element from a pfn list and returns it
-PPFN pop_from_list_helper(PPFN_LIST listhead)
-{
-    PPFN pfn;
-    PLIST_ENTRY flink_entry;
-
-    // Checks the integrity of the list before and after the remove operation
-    check_list_integrity(listhead, NULL);
-
-    flink_entry = RemoveHeadList(&listhead->entry);
-    pfn = CONTAINING_RECORD(flink_entry, PFN, entry);
-
-    listhead->num_pages--;
-
-    check_list_integrity(listhead, NULL);
-
-    return pfn;
-}
-
-// Returns a locked page
-PPFN pop_from_list(PPFN_LIST listhead)
-{
-    BOOLEAN took_page = FALSE;
-    PPFN peeked_page;
-    PPFN taken_page;
-
-    EnterCriticalSection(&listhead->lock);
-
-    while (took_page == FALSE) {
-        // Peek at the head of the list
-        // If the list is empty, return
-        if (IsListEmpty(&listhead->entry))
-        {
-            LeaveCriticalSection(&listhead->lock);
-            return NULL;
-        }
-
-        // If not empty, grab the head of the list
-        peeked_page = CONTAINING_RECORD(listhead->entry.Flink, PFN, entry);
-        // Try to lock the pfn at the head
-        if (try_lock_pfn(peeked_page) == FALSE) {
-            // If we can't lock the pfn then we relinquish the lock on the list and try again
-            LeaveCriticalSection(&listhead->lock);
-            // We relinquish the lock in hopes that another thread
-            // Will make progress on this page and relinquish its lock or take the page entirely
-            // Try to do the operation again
-            EnterCriticalSection(&listhead->lock);
-            continue;
-        }
-
-        assert(listhead->num_pages != 0)
-        // Do the actual work of removing it now that we know its safe
-        taken_page = pop_from_list_helper(listhead);
-        assert(taken_page == peeked_page)
-        // Relinquish lock for list
-        LeaveCriticalSection(&listhead->lock);
-        took_page = TRUE;
-    }
-
-    return taken_page;
-}
-
-// Returns a locked page
-PFN_LIST batch_pop_from_list(PPFN_LIST listhead, PPFN_LIST batch_list, ULONG64 batch_size)
-{
-    PPFN peeked_page;
-    PLIST_ENTRY flink_entry;
-
-    InitializeListHead(&batch_list->entry);
-    batch_list->num_pages = 0;
-
-    flink_entry = listhead->entry.Flink;
-
-    for (ULONG64 i = 0; i < batch_size; i++) {
-        // We don't expect this to happen, but if it does, we just return the batch list
-        if (flink_entry == &listhead->entry)
-        {
-            return *batch_list;
-        }
-
-        peeked_page = CONTAINING_RECORD(flink_entry, PFN, entry);
-        // Try to lock the pfn at the head
-        // TODO We now need to skip past the page if we can't lock it and try the next one
-        if (try_lock_pfn(peeked_page) == TRUE) {
-            flink_entry = flink_entry->Flink;
-            remove_from_list(peeked_page);
-            add_to_list(peeked_page, batch_list);
-        }
-        else {
-            flink_entry = flink_entry->Flink;
-        }
-    }
-
-    return *batch_list;
-}
-
-// This function simply adds a page to a specified list
-VOID add_to_list(PPFN pfn, PPFN_LIST listhead) {
-    // Inserts it on the list, checking the integrity of it before and after
-    check_list_integrity(listhead, NULL);
-    InsertTailList(&listhead->entry, &pfn->entry);
-    listhead->num_pages++;
-    check_list_integrity(listhead, pfn);
-}
-
-// This function is used to re-add a page to the head of a list
-VOID add_to_list_head(PPFN pfn, PPFN_LIST listhead) {
-    check_list_integrity(listhead, NULL);
-    InsertHeadList(&listhead->entry, &pfn->entry);
-    listhead->num_pages++;
-    check_list_integrity(listhead, pfn);
-}
-
-#if 0
-VOID log_pte_write(PTE initial, PTE new)
-{
-
-}
-
-VOID log_pfn_write(PFN initial, PFN new)
-{
-
-}
-#endif
-
 // These functions are used to read and write PTEs and PFNs in a way that doesn't conflict with other threads
 PTE read_pte(PPTE pte)
 {
@@ -281,6 +81,11 @@ PTE read_pte(PPTE pte)
     // Can still access this PTE in transition format and see an intermediate state
     PTE local;
     local.entire_format = *(volatile ULONG64 *) &pte->entire_format;
+
+    #if READWRITE_LOGGING
+    log_access(IS_A_PTE, pte, READ);
+    #endif
+
     return local;
 }
 
@@ -291,11 +96,42 @@ VOID write_pte(PPTE pte, PTE local)
     // This is needed because the cpu or another concurrent faulting thread
     // Can still access this pte in transition format and see an intermediate state
     *(volatile ULONG64 *) &pte->entire_format = local.entire_format;
+    if (local.entire_format == 0)
+    {
+        // The PTE is free
+    }
+    else if (local.memory_format.valid == 1)
+    {
+        // The PTE is valid
+        if (local.memory_format.frame_number > highest_frame_number)
+        {
+            fatal_error("write_pte : frame number is out of valid range");
+        }
+    }
+    else if (local.disc_format.on_disc == 1)
+    {
+        // The PTE is on disc
+    }
+    else
+    {
+        if (local.transition_format.frame_number > highest_frame_number)
+        {
+            fatal_error("write_pte : frame number is out of valid range");
+        }
+    }
+
+    #if READWRITE_LOGGING
+    log_access(IS_A_PTE, pte, WRITE);
+    #endif
 }
 
 // This strategy is not usable for PFNs because they are too large
 PFN read_pfn(PPFN pfn)
 {
+    #if READWRITE_LOGGING
+    log_access(IS_A_FRAME_NUMBER, (PVOID) frame_number_from_pfn(pfn), READ);
+    #endif
+
     return *pfn;
 }
 
@@ -304,6 +140,10 @@ VOID write_pfn(PPFN pfn, PFN local)
     pfn->pte = local.pte;
     pfn->flags = local.flags;
     pfn->disc_index = local.disc_index;
+
+    #if READWRITE_LOGGING
+    log_access(IS_A_FRAME_NUMBER, (PVOID) frame_number_from_pfn(pfn), WRITE);
+    #endif
 }
 
 // Functions to lock and unlock PTE regions and individual PFNs
@@ -315,6 +155,10 @@ VOID lock_pte(PPTE pte)
     ULONG64 index = pte - pte_base;
     index /= PTE_REGION_SIZE;
 
+    #if READWRITE_LOGGING
+    log_access(IS_A_PTE, pte, LOCK);
+    #endif
+
     EnterCriticalSection(&pte_region_locks[index]);
 }
 
@@ -322,6 +166,10 @@ VOID unlock_pte(PPTE pte)
 {
     ULONG64 index = pte - pte_base;
     index /= PTE_REGION_SIZE;
+
+    #if READWRITE_LOGGING
+    log_access(IS_A_PTE, pte, UNLOCK);
+    #endif
 
     LeaveCriticalSection(&pte_region_locks[index]);
 }
@@ -331,20 +179,50 @@ BOOLEAN try_lock_pte(PPTE pte)
     ULONG64 index = pte - pte_base;
     index /= PTE_REGION_SIZE;
 
-    return TryEnterCriticalSection(&pte_region_locks[index]);
+    BOOLEAN result = TryEnterCriticalSection(&pte_region_locks[index]);
+
+    #if READWRITE_LOGGING
+    if (result == TRUE) {
+        log_access(IS_A_PTE, pte, TRY_SUCCESS);
+    }
+    else {
+        log_access(IS_A_PTE, pte, TRY_FAIL);
+    }
+    #endif
+
+    return result;
 }
 
 VOID lock_pfn(PPFN pfn)
 {
+    #if READWRITE_LOGGING
+    log_access(IS_A_FRAME_NUMBER, (PVOID) frame_number_from_pfn(pfn), LOCK);
+    #endif
+
     EnterCriticalSection(&pfn->lock);
 }
 
 VOID unlock_pfn(PPFN pfn)
 {
+    #if READWRITE_LOGGING
+    log_access(IS_A_FRAME_NUMBER, (PVOID) frame_number_from_pfn(pfn), UNLOCK);
+    #endif
+
     LeaveCriticalSection(&pfn->lock);
 }
 
 BOOLEAN try_lock_pfn(PPFN pfn)
 {
-    return TryEnterCriticalSection(&pfn->lock);
+    BOOLEAN result = TryEnterCriticalSection(&pfn->lock);
+
+    #if READWRITE_LOGGING
+    if (result == TRUE) {
+        log_access(IS_A_FRAME_NUMBER, (PVOID) frame_number_from_pfn(pfn), TRY_SUCCESS);
+    }
+    else {
+        log_access(IS_A_FRAME_NUMBER, (PVOID) frame_number_from_pfn(pfn), TRY_FAIL);
+    }
+    #endif
+
+    return result;
 }

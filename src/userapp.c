@@ -3,8 +3,6 @@
 #include "../include/userapp.h"
 #include "../include/debug.h"
 
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "UnreachableCode"
 #pragma comment(lib, "advapi32.lib")
 
 
@@ -71,7 +69,7 @@ VOID full_virtual_memory_test(VOID) {
 
     virtual_address_size_in_pages = num_bytes / PAGE_SIZE;
 
-    PULONG_PTR p_end = pointer + (virtual_address_size_in_pages * PAGE_SIZE) / sizeof(ULONG_PTR);
+    //PULONG_PTR p_end = pointer + (virtual_address_size_in_pages * PAGE_SIZE) / sizeof(ULONG_PTR);
 
     ULONG64 slice_size = virtual_address_size_in_pages / NUMBER_OF_FAULTING_THREADS;
     ULONG64 slice_start = slice_size * thread_index;
@@ -112,7 +110,7 @@ VOID full_virtual_memory_test(VOID) {
             //            arbitrary_va = p + slice_start + (i * PAGE_SIZE) / sizeof(ULONG_PTR);
 
             if (rep % 10000 == 0) {
-                printf(".");
+                printf("/");
             }
 
             // Calculate arbitrary VA from rep
@@ -191,4 +189,3 @@ DWORD faulting_thread(PVOID context)
 
     return 0;
 }
-#pragma clang diagnostic pop

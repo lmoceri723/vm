@@ -1,11 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <Windows.h>
-#include "../include/macros.h"
 #include "../include/structs.h"
 #include "../include/system.h"
 #include "../include/pagefile.h"
 #include "../include/debug.h"
+#include "../include/pfn_lists.h"
 
 #pragma comment(lib, "advapi32.lib")
 
@@ -210,13 +210,13 @@ VOID initialize_page_file_bitmap(VOID)
 // This function initializes our page lists
 VOID initialize_page_lists(VOID)
 {
-    InitializeListHead(&free_page_list.entry);
+    initialize_listhead(&free_page_list);
     free_page_list.num_pages = 0;
 
-    InitializeListHead(&modified_page_list.entry);
+    initialize_listhead(&modified_page_list);
     modified_page_list.num_pages = 0;
 
-    InitializeListHead(&standby_page_list.entry);
+    initialize_listhead(&standby_page_list);
     standby_page_list.num_pages = 0;
 
 }
@@ -273,6 +273,14 @@ VOID initialize_pte_metadata(VOID)
     pte_end = pte_base + num_pte_bytes / sizeof(PTE);
 }
 
+VOID insert_tail_list(PLIST_ENTRY listhead, PLIST_ENTRY entry) {
+    PLIST_ENTRY tail_entry = listhead->Blink;
+    entry->Flink = listhead;
+    entry->Blink = tail_entry;
+    tail_entry->Flink = entry;
+    listhead->Blink = entry;
+}
+
 // This function initializes the PFNs that we use to track the state of physical pages
 VOID initialize_pfn_metadata(VOID)
 {
@@ -318,7 +326,7 @@ VOID initialize_pfn_metadata(VOID)
         INITIALIZE_LOCK(pfn->lock);
 
         // Inserts our newly initialized pfn into the free page list
-        InsertTailList(&free_page_list.entry, &pfn->entry);
+        insert_tail_list(&free_page_list.entry, &pfn->entry);
         free_page_list.num_pages++;
     }
 }

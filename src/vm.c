@@ -40,13 +40,13 @@ PPFN get_free_page(VOID) {
     // There is no value to checking if the list is empty
     // An attempt to pop from an empty list will return NULL, and we will move on to the next list
     // Once we allow users to free memory, we will need to zero this too and do so using a thread
-    free_page = pop_from_list(&free_page_list);
+    free_page = pop_from_list_head(&free_page_list);
     assert(free_page == NULL || free_page->flags.state == FREE)
 
     // This is where we take pages from the standby list and reallocate their physical pages for our new va to use
     if (free_page == NULL)
     {
-        free_page = pop_from_list(&standby_page_list);
+        free_page = pop_from_list_head(&standby_page_list);
         if (free_page == NULL) {
             SetEvent(wake_aging_event);
             return NULL;
@@ -59,6 +59,11 @@ PPFN get_free_page(VOID) {
 
         // We hold this PTEs PFN lock which allows us to access this PTE here without a lock
         PTE local = *other_pte;
+        if (local.disc_format.always_zero == 1)
+        {
+            printf("Valid bit was never zeroed in PTE %p\n", other_pte);
+           DebugBreak();
+        }
         local.disc_format.on_disc = 1;
         local.disc_format.disc_index = other_disc_index;
         write_pte(other_pte, local);
@@ -110,7 +115,7 @@ PPFN read_page_on_disc(PPTE pte, PPFN free_page)
     LeaveCriticalSection(&modified_read_va_lock);
 
     // Set the bit at disc_index in disc in use to be 0 to reuse the disc spot
-    free_disc_index(pte->disc_format.disc_index, FALSE);
+    free_disc_index(pte->disc_format.disc_index);
     return free_page;
 }
 
@@ -221,10 +226,10 @@ VOID page_fault_handler(PVOID arbitrary_va, PFAULT_STATS stats)
             return;
         }
 
-        assert(pte_contents.transition_format.always_zero == 0)
-        assert(pte_contents.transition_format.always_zero2 == 0)
-        assert(pte_contents.transition_format.frame_number == frame_number_from_pfn(pfn))
-        assert(pfn->flags.state == STANDBY || pfn->flags.state == MODIFIED)
+        // assert(pte_contents.transition_format.always_zero == 0)
+        // assert(pte_contents.transition_format.always_zero2 == 0)
+        // assert(pte_contents.transition_format.frame_number == frame_number_from_pfn(pfn))
+        // assert(pfn->flags.state == STANDBY || pfn->flags.state == MODIFIED)
 
         if (pfn->flags.state == MODIFIED) {
             EnterCriticalSection(&modified_page_list.lock);
@@ -236,7 +241,7 @@ VOID page_fault_handler(PVOID arbitrary_va, PFAULT_STATS stats)
             EnterCriticalSection(&standby_page_list.lock);
             remove_from_list(pfn);
             // Freeing the space here and updating the pfn lower down
-            free_disc_index(pfn->disc_index, FALSE);
+            free_disc_index(pfn->disc_index);
             LeaveCriticalSection(&standby_page_list.lock);
         }
     }

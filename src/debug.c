@@ -1,5 +1,10 @@
 #include "../include/debug.h"
-volatile ULONG LM = 0;
+volatile ULONG CHECK_INTEGRITY = 0;
+
+#if READWRITE_LOGGING
+READWRITE_LOG_ENTRY page_log[LOG_SIZE];
+LONG64 readwrite_log_index = 0;
+#endif
 
 // Checks the integrity of a pfn list
 // This is very helpful to use when debugging but very expensive
@@ -13,7 +18,7 @@ VOID check_list_integrity(PPFN_LIST listhead, PPFN match_pfn)
     ULONG count;
     ULONG matched;
 
-    if (LM == 0) {
+    if (CHECK_INTEGRITY == 0) {
         return;
     }
     // This makes sure that this list is actually owned by the calling thread
@@ -84,6 +89,7 @@ VOID fatal_error(char *msg)
         msg = "";
     }
     printf("\n%s", msg);
+
     DebugBreak();
     exit(1);
 }
@@ -102,4 +108,88 @@ VOID unmap_pages(PVOID virtual_address, ULONG_PTR num_pages)
         printf("unmap_pages : could not unmap VA %p to page %llX\n", virtual_address, num_pages);
         fatal_error(NULL);
     }
+}
+
+// This logs the access of a PTE or PFN whether it is a read or a write and records all relevant information
+VOID log_access(ULONG is_pte, PVOID ppte_or_fn, ULONG operation)
+{
+    #if READWRITE_LOGGING
+
+    READWRITE_LOG_ENTRY log_entry;
+    PPTE pte;
+    PPFN pfn;
+
+    if (operation != WRITE && is_pte != IS_A_PTE) {
+        return;
+    }
+
+    pte = (PPTE) ppte_or_fn;
+
+    // See if the last two hex digits of the PTEs address are 68
+    if ((ULONG64) pte & 0xFF != 0x68) {
+        return;
+    }
+
+    ULONG64 bounded_log_index = InterlockedIncrement64(&readwrite_log_index) % LOG_SIZE;
+
+    if (is_pte) {
+        pte = (PPTE) ppte_or_fn;
+
+        if (pte->entire_format == 0) {
+            pfn = NULL;
+        }
+        else if (pte->memory_format.valid == 1) {
+            ULONG64 frame_number = pte->memory_format.frame_number;
+            if (frame_number > highest_frame_number) {
+                printf("log_access : frame number for memory PTE %p is out of valid range during operation %lu\n", pte, operation);
+                fatal_error(NULL);
+            }
+            pfn = pfn_from_frame_number(frame_number);
+        }
+        else if (pte->disc_format.on_disc == 1) {
+            pfn = NULL;
+        }
+        else {
+            ULONG64 frame_number = pte->transition_format.frame_number;
+            if (frame_number > highest_frame_number) {
+                printf("log_access : frame number for transition PTE %p is out of valid range\n", pte);
+                fatal_error(NULL);
+            }
+            pfn = pfn_from_frame_number(frame_number);
+        }
+    }
+    else {
+        pfn = pfn_from_frame_number((ULONG64) ppte_or_fn);
+        pte = pfn->pte;
+    }
+
+    if (pte == NULL) {
+        log_entry.pte_ptr = NULL;
+        log_entry.pte_val = (PTE) {0};
+        log_entry.virtual_address = NULL;
+    }
+    else {
+        log_entry.pte_ptr = pte;
+        log_entry.pte_val = *pte;
+        log_entry.virtual_address = va_from_pte(pte);
+    }
+
+    log_entry.pfn_ptr = pfn;
+    if (pfn != NULL) {
+        log_entry.pfn_val = *pfn;
+        log_entry.frame_number = frame_number_from_pfn(pfn);
+    }
+    else {
+        log_entry.pfn_val = (PFN) {0};
+        log_entry.frame_number = 0;
+    }
+
+    log_entry.operation = operation;
+
+    log_entry.entry_index = bounded_log_index;
+    CaptureStackBackTrace(0, 8, log_entry.stack_trace, NULL);
+    log_entry.accessing_thread_id = GetCurrentThreadId();
+
+    page_log[bounded_log_index] = log_entry;
+    #endif
 }

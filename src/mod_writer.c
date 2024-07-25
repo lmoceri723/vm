@@ -1,6 +1,7 @@
 #include "../include/debug.h"
 #include "../include/system.h"
-#include "../include/macros.h"
+#include "../include/pagefile.h"
+#include "../include/pfn_lists.h"
 
 #define MAX_MOD_BATCH                   256
 
@@ -14,7 +15,7 @@ BOOLEAN write_pages_to_disc(VOID)
     PFN local;
 
     // Initialize the list of pages to write to disc
-    InitializeListHead(&batch_list.entry);
+    initialize_listhead(&batch_list);
     batch_list.num_pages = 0;
 
     // Lock the list of modified pages
@@ -58,7 +59,7 @@ BOOLEAN write_pages_to_disc(VOID)
     //LeaveCriticalSection(&disc_in_use_lock);
 
     // This could return a frame number array
-    batch_pop_from_list(&modified_page_list, &batch_list, target_pages);
+    batch_pop_from_list_head(&modified_page_list, &batch_list, target_pages);
 
     // Call free_disc_space on the last (target_pages - batch_list.num_pages) disc_indices
     if (batch_list.num_pages != target_pages)
@@ -68,7 +69,7 @@ BOOLEAN write_pages_to_disc(VOID)
         for (ULONG64 i = batch_list.num_pages; i < target_pages; i++)
         {
             // TODO locking here too
-            free_disc_index(disc_indices[i], FALSE);
+            free_disc_index(disc_indices[i]);
         }
 
         //LeaveCriticalSection(&disc_in_use_lock);
@@ -125,7 +126,7 @@ BOOLEAN write_pages_to_disc(VOID)
             local.flags.modified = 0;
             write_pfn(pfn, local);
 
-            free_disc_index(disc_indices[i], FALSE);
+            free_disc_index(disc_indices[i]);
         }
     }
 
@@ -135,10 +136,10 @@ BOOLEAN write_pages_to_disc(VOID)
 
     // Add the pages to the standby list
     EnterCriticalSection(&standby_page_list.lock);
-    while (!IsListEmpty(&batch_list.entry))
+    while (!is_list_empty(&batch_list))
     {
-        pfn = pop_from_list(&batch_list);
-        add_to_list(pfn, &standby_page_list);
+        pfn = pop_from_list_head(&batch_list);
+        add_to_list_tail(pfn, &standby_page_list);
 
         // TODO LM ASK IS THIS CORRECT?
         unlock_pfn(pfn);
@@ -160,7 +161,7 @@ BOOLEAN write_page_to_disc(VOID)
     ULONG_PTR frame_number;
     ULONG64 disc_index;
 
-    pfn = pop_from_list(&modified_page_list);
+    pfn = pop_from_list_head(&modified_page_list);
     if (pfn == NULL)
     {
         return FALSE;
@@ -218,7 +219,7 @@ BOOLEAN write_page_to_disc(VOID)
 
     EnterCriticalSection(&standby_page_list.lock);
 
-    add_to_list(pfn, &standby_page_list);
+    add_to_list_tail(pfn, &standby_page_list);
 
     LeaveCriticalSection(&standby_page_list.lock);
 

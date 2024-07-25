@@ -66,11 +66,14 @@ typedef struct {
     CRITICAL_SECTION lock;
 } PFN, *PPFN;
 
-typedef struct {
-    LIST_ENTRY entry;
-    ULONG_PTR num_pages;
-    CRITICAL_SECTION lock;
-} PFN_LIST, *PPFN_LIST;
+extern PPTE pte_base;
+extern PPTE pte_end;
+
+extern CRITICAL_SECTION pte_region_locks[NUMBER_OF_PTE_REGIONS];
+
+extern PPFN pfn_base;
+extern PPFN pfn_end;
+extern ULONG_PTR highest_frame_number;
 
 extern PPTE pte_from_va(PVOID virtual_address);
 extern PVOID va_from_pte(PPTE pte);
@@ -88,11 +91,5 @@ extern PTE read_pte(PPTE pte);
 extern VOID write_pte(PPTE pte, PTE pte_contents);
 extern PFN read_pfn(PPFN pfn);
 extern VOID write_pfn(PPFN pfn, PFN pfn_contents);
-
-extern VOID remove_from_list(PPFN pfn);
-extern VOID add_to_list(PPFN pfn, PPFN_LIST listhead);
-extern VOID add_to_list_head(PPFN pfn, PPFN_LIST listhead);
-extern PPFN pop_from_list(PPFN_LIST listhead);
-extern PFN_LIST batch_pop_from_list(PPFN_LIST listhead, PPFN_LIST batch_list, ULONG64 batch_size);
 
 #endif //VM_STRUCTS_H

@@ -32,7 +32,10 @@ void trim(PPTE pte)
 
     // The PTE is zeroed out here to ensure no stale data remains
     new_pte_contents.entire_format = 0;
+    new_pte_contents.transition_format.always_zero = 0;
     new_pte_contents.transition_format.frame_number = old_pte_contents.memory_format.frame_number;
+    new_pte_contents.transition_format.always_zero2 = 0;
+
     write_pte(pte, new_pte_contents);
 
     pfn_contents = read_pfn(pfn);
@@ -42,7 +45,7 @@ void trim(PPTE pte)
     // Add the page to the modified list
     EnterCriticalSection(&modified_page_list.lock);
 
-    add_to_list(pfn, &modified_page_list);
+    add_to_list_tail(pfn, &modified_page_list);
 
     LeaveCriticalSection(&modified_page_list.lock);
 
@@ -59,6 +62,7 @@ void trim(PPTE pte)
 VOID age_pages()
 {
     PPTE pte;
+    PTE local;
     pte = pte_base;
 
     // Iterates over all PTEs and ages them
@@ -73,7 +77,9 @@ VOID age_pages()
             }
             else
             {
-                pte->memory_format.age += 1;
+                local = read_pte(pte);
+                local.memory_format.age += 1;
+                write_pte(pte, local);
             }
         }
         unlock_pte(pte);
