@@ -1,10 +1,16 @@
+#include "Windows.h"
+#include "../include/vm.h"
 #include "../include/debug.h"
+
+#include <system.h>
 volatile ULONG CHECK_INTEGRITY = 0;
 
 #if READWRITE_LOGGING
 READWRITE_LOG_ENTRY page_log[LOG_SIZE];
 LONG64 readwrite_log_index = 0;
 #endif
+
+PBOOLEAN va_access_map;
 
 // Checks the integrity of a pfn list
 // This is very helpful to use when debugging but very expensive
@@ -80,36 +86,6 @@ VOID check_list_integrity(PPFN_LIST listhead, PPFN match_pfn)
 #endif
 }
 
-// This breaks into the debugger if possible,
-// Otherwise it crashes the program
-// This is only done if our state machine is irreparably broken (or attacked)
-VOID fatal_error(char *msg)
-{
-    if (msg == NULL) {
-        msg = "";
-    }
-    printf("\n%s", msg);
-
-    DebugBreak();
-    exit(1);
-}
-
-VOID map_pages(PVOID virtual_address, ULONG_PTR num_pages, PULONG_PTR page_array)
-{
-    if (MapUserPhysicalPages(virtual_address, num_pages, page_array) == FALSE) {
-        printf("map_pages : could not map VA %p to page %llX\n", virtual_address, page_array[0]);
-        fatal_error(NULL);
-    }
-}
-
-VOID unmap_pages(PVOID virtual_address, ULONG_PTR num_pages)
-{
-    if (MapUserPhysicalPages(virtual_address, num_pages, NULL) == FALSE) {
-        printf("unmap_pages : could not unmap VA %p to page %llX\n", virtual_address, num_pages);
-        fatal_error(NULL);
-    }
-}
-
 // This logs the access of a PTE or PFN whether it is a read or a write and records all relevant information
 VOID log_access(ULONG is_pte, PVOID ppte_or_fn, ULONG operation)
 {
@@ -142,6 +118,7 @@ VOID log_access(ULONG is_pte, PVOID ppte_or_fn, ULONG operation)
             ULONG64 frame_number = pte->memory_format.frame_number;
             if (frame_number > highest_frame_number) {
                 printf("log_access : frame number for memory PTE %p is out of valid range during operation %lu\n", pte, operation);
+                printf("PTE index: %llu\n", pte - pte_base);
                 fatal_error(NULL);
             }
             pfn = pfn_from_frame_number(frame_number);
@@ -153,9 +130,11 @@ VOID log_access(ULONG is_pte, PVOID ppte_or_fn, ULONG operation)
             ULONG64 frame_number = pte->transition_format.frame_number;
             if (frame_number > highest_frame_number) {
                 printf("log_access : frame number for transition PTE %p is out of valid range\n", pte);
+                printf("PTE index: %llu\n", pte - pte_base);
                 fatal_error(NULL);
             }
             pfn = pfn_from_frame_number(frame_number);
+            //2097151
         }
     }
     else {
@@ -192,4 +171,16 @@ VOID log_access(ULONG is_pte, PVOID ppte_or_fn, ULONG operation)
 
     page_log[bounded_log_index] = log_entry;
     #endif
+}
+
+VOID print_va_access_rate(VOID) {
+    ULONG64 count = 0;
+    ULONG64 virtual_address_size_in_pages = virtual_address_size / PAGE_SIZE;
+    for (ULONG64 i = 0; i < virtual_address_size_in_pages; i++) {
+        if (va_access_map[i] == FALSE) {
+            count++;
+        }
+    }
+
+    printf("get_va_access_rate : %llu pages were not accessed out of %llu\n", count, virtual_address_size_in_pages);
 }

@@ -1,5 +1,6 @@
-#include "pfn_lists.h"
-#include "debug.h"
+#include <Windows.h>
+#include "../include/vm.h"
+#include "../include/debug.h"
 
 PFN_LIST free_page_list;
 PFN_LIST modified_page_list;

@@ -1,14 +1,10 @@
 #include <Windows.h>
-#include <stdio.h>
-#include "../include/structs.h"
-#include "../include/system.h"
+#include "../include/vm.h"
 #include "../include/debug.h"
 
 // This function puts an individual page on the modified list given its PTE
 void trim(PPTE pte)
 {
-    num_trims++;
-
     PPFN pfn;
     PFN pfn_contents;
     PTE old_pte_contents;
@@ -87,6 +83,45 @@ VOID age_pages()
     }
 }
 
+VOID age_pte_regions()
+{
+    PPTE pte;
+    PTE local;
+
+    for (ULONG64 region = 0; region < NUMBER_OF_PTE_REGIONS; region++)
+    {
+        pte = pte_base + region * PTE_REGION_SIZE;
+        if (pte == pte_end)
+        {
+            break;
+        }
+        // Lock the PTE at the beginning of the region, which locks the entire region
+        lock_pte(pte);
+        for (ULONG64 index = 0; index < PTE_REGION_SIZE; index++)
+        {
+            if (pte == pte_end)
+            {
+                break;
+            }
+
+            if (pte->memory_format.valid == 1)
+            {
+                if (pte->memory_format.age == 7)
+                {
+                    trim(pte);
+                }
+                else
+                {
+                    local = read_pte(pte);
+                    local.memory_format.age += 1;
+                    write_pte(pte, local);
+                }
+            }
+            pte++;
+        }
+        unlock_pte(pte);
+    }
+}
 // No functions get to call this, it must be invoked in its own thread context
 DWORD trim_thread(PVOID context) {
     // This parameter only exists to satisfy the API requirements for a thread starting function

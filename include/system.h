@@ -1,10 +1,10 @@
 #ifndef VM_SYSTEM_H
 #define VM_SYSTEM_H
-#include "pagefile.h"
-#include "userapp.h"
+#include <Windows.h>
+
+#define NULL_CHECK(x, msg)       if (x == NULL) {fatal_error(msg); }
 
 extern ULONG_PTR physical_page_count;
-extern ULONG_PTR disc_page_count;
 extern ULONG_PTR virtual_address_size;
 
 extern PVOID va_base;
@@ -31,4 +31,9 @@ extern DWORD trim_thread(PVOID context);
 extern VOID initialize_system(VOID);
 extern VOID run_system(VOID);
 extern VOID deinitialize_system(VOID);
+
+extern VOID fatal_error(char *msg);
+extern VOID map_pages(PVOID user_va, ULONG_PTR page_count, PULONG_PTR page_array);
+extern VOID unmap_pages(PVOID user_va, ULONG_PTR page_count);
+
 #endif //VM_SYSTEM_H

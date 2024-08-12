@@ -22,11 +22,9 @@
 #define MEMORY_SIZE_IN_GB                        ((ULONG64) 8)
 #define PAGE_FILE_SIZE_IN_GB                     ((ULONG64) MEMORY_SIZE_IN_GB * 2)
 
-#define NUMBER_OF_PHYSICAL_PAGES                 (GB(MEMORY_SIZE_IN_GB) / PAGE_SIZE)
+#define DESIRED_NUMBER_OF_PHYSICAL_PAGES         (GB(MEMORY_SIZE_IN_GB) / PAGE_SIZE)
 #define NUMBER_OF_DISC_PAGES                     (GB(PAGE_FILE_SIZE_IN_GB) / PAGE_SIZE)
 
-// #define NUMBER_OF_VIRTUAL_ADDRESSES              (NUMBER_OF_PHYSICAL_PAGES + NUMBER_OF_DISC_PAGES)
-
-#define NUMBER_OF_FAULTING_THREADS                 8
+#define NUMBER_OF_FAULTING_THREADS                 1
 
 #endif //HARDWARE_H

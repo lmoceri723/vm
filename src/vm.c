@@ -1,7 +1,5 @@
 #include <Windows.h>
-#include <time.h>
-#include "../include/structs.h"
-#include "../include/system.h"
+#include "../include/vm.h"
 #include "../include/debug.h"
 
 /* Medium Changes */
@@ -24,13 +22,41 @@ PPFN read_page_on_disc(PPTE pte, PPFN free_page);
 
 ULONG_PTR virtual_address_size;
 ULONG_PTR physical_page_count;
-ULONG_PTR disc_page_count;
 PVOID va_base;
 PVOID va__end;
 PVOID modified_write_va;
 PVOID modified_read_va;
 PVOID repurpose_zero_va;
-PVOID page_file;
+
+// This breaks into the debugger if possible,
+// Otherwise it crashes the program
+// This is only done if our state machine is irreparably broken (or attacked)
+VOID fatal_error(char *msg)
+{
+    if (msg == NULL) {
+        msg = "";
+    }
+    printf("\n%s", msg);
+
+    DebugBreak();
+    exit(1);
+}
+
+VOID map_pages(PVOID virtual_address, ULONG_PTR num_pages, PULONG_PTR page_array)
+{
+    if (MapUserPhysicalPages(virtual_address, num_pages, page_array) == FALSE) {
+        printf("map_pages : could not map VA %p to page %llX\n", virtual_address, page_array[0]);
+        fatal_error(NULL);
+    }
+}
+
+VOID unmap_pages(PVOID virtual_address, ULONG_PTR num_pages)
+{
+    if (MapUserPhysicalPages(virtual_address, num_pages, NULL) == FALSE) {
+        printf("unmap_pages : could not unmap VA %p to page %llX\n", virtual_address, num_pages);
+        fatal_error(NULL);
+    }
+}
 
 // This is how we get pages for new virtual addresses as well as old ones only exist on the paging file
 PPFN get_free_page(VOID) {
@@ -310,7 +336,9 @@ int main (int argc, char** argv)
 
     run_system();
     printf("vm.c : tests finished\n");
-
+    #if VA_ACCESS_MAP
+    print_va_access_rate();
+    #endif
     deinitialize_system();
 
     return 0;

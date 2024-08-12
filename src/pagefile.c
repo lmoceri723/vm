@@ -1,11 +1,8 @@
-#include <stdio.h>
 #include <Windows.h>
-#include "../include/system.h"
-#include "../include/pagefile.h"
+#include "../include/vm.h"
 #include "../include/debug.h"
 
-
-extern PVOID page_file;
+PVOID page_file;
 
 PBITMAP_CHUNK page_file_bitmap;
 PBITMAP_CHUNK page_file_bitmap_end;

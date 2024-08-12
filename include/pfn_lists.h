@@ -2,7 +2,7 @@
 #define PFN_LISTS_H
 
 #include <Windows.h>
-#include "structs.h"
+#include "pfn.h"
 
 typedef struct {
     LIST_ENTRY entry;

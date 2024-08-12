@@ -1,11 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <Windows.h>
-#include "../include/structs.h"
-#include "../include/system.h"
-#include "../include/pagefile.h"
+#include "../include/vm.h"
 #include "../include/debug.h"
-#include "../include/pfn_lists.h"
 
 #pragma comment(lib, "advapi32.lib")
 
@@ -34,7 +31,6 @@ HANDLE system_start_event;
 
 
 // These are the locks used in our system
-CRITICAL_SECTION pte_region_locks[NUMBER_OF_PTE_REGIONS];
 CRITICAL_SECTION modified_write_va_lock;
 CRITICAL_SECTION modified_read_va_lock;
 CRITICAL_SECTION repurpose_zero_va_lock;
@@ -248,7 +244,7 @@ VOID initialize_user_va_space(VOID)
     // We deliberately make this much larger than physical memory to illustrate how we can manage the illusion.
     // We need to still have a large enough amount of physical memory in order to have any performance
 
-    virtual_address_size = (physical_page_count + disc_page_count - 1) * PAGE_SIZE;
+    virtual_address_size = (physical_page_count + NUMBER_OF_DISC_PAGES - 1) * PAGE_SIZE;
 
     // Round down to a PAGE_SIZE boundary
     // Uses bit operations instead of modulus to do this quicker
@@ -334,7 +330,7 @@ VOID initialize_pfn_metadata(VOID)
 // This function initializes our page pool
 VOID initialize_pages()
 {
-    physical_page_count = NUMBER_OF_PHYSICAL_PAGES;
+    physical_page_count = DESIRED_NUMBER_OF_PHYSICAL_PAGES;
 
     // We use this array to store all the frame numbers of every page we take
     physical_page_numbers = (PULONG_PTR) malloc(physical_page_count * sizeof(ULONG_PTR));
@@ -346,9 +342,9 @@ VOID initialize_pages()
         fatal_error("initialize_pages : could not allocate physical pages");
     }
 
-    if (physical_page_count != NUMBER_OF_PHYSICAL_PAGES) {
+    if (physical_page_count != DESIRED_NUMBER_OF_PHYSICAL_PAGES) {
         printf("initialize_pages : allocated only %llu pages out of %llu pages requested", physical_page_count,
-               NUMBER_OF_PHYSICAL_PAGES);
+               DESIRED_NUMBER_OF_PHYSICAL_PAGES);
     }
 
     // TODO just find the highest frame number and the minumum frame number
@@ -356,6 +352,16 @@ VOID initialize_pages()
     // This sorts the physical page numbers in ascending order
     qsort(physical_page_numbers, physical_page_count, sizeof(ULONG_PTR),
           compare);
+}
+
+VOID initialize_accessed_va_map(VOID)
+{
+    ULONG64 virtual_address_size_in_pages = virtual_address_size / PAGE_SIZE;
+
+    PBOOLEAN va_accessed_map = (PBOOLEAN) malloc(virtual_address_size_in_pages * sizeof(BOOLEAN));
+
+    NULL_CHECK(va_accessed_map, "initialize_accessed_va_map : could not allocate memory for va accessed map")
+    memset(va_accessed_map, 0, virtual_address_size_in_pages * sizeof(BOOLEAN));
 }
 
 // This is a helper function for qsort
@@ -400,6 +406,10 @@ VOID initialize_system (VOID) {
     initialize_system_va_space();
 
     initialize_pte_metadata();
+
+    #if VA_ACCESS_MAP
+    initialize_accessed_va_map();
+    #endif
 
     initialize_threads();
 

@@ -1,7 +1,6 @@
+#include <Windows.h>
+#include "../include/vm.h"
 #include "../include/debug.h"
-#include "../include/system.h"
-#include "../include/pagefile.h"
-#include "../include/pfn_lists.h"
 
 #define MAX_MOD_BATCH                   256
 

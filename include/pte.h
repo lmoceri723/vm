@@ -1,22 +1,12 @@
-#ifndef VM_STRUCTS_H
-#define VM_STRUCTS_H
-
-#include <stdio.h>
-#include <stdlib.h>
+#ifndef VM_PTE_H
+#define VM_PTE_H
 #include <Windows.h>
-#include "hardware.h"
 
-#define FREE 0
-#define STANDBY 1
-// The zeroed state is currently unimplemented
-//#define ZEROED 2
-#define MODIFIED 3
-#define ACTIVE 4
-
+// This number is strategically chosen to be 512, as it corresponds to the number of entries in a page table
 #define PTE_REGION_SIZE                          512
 
 // With a region size of 512, we have 2MB of virtual memory per region
-#define NUMBER_OF_PTE_REGIONS                    ((NUMBER_OF_PHYSICAL_PAGES + NUMBER_OF_DISC_PAGES) / PTE_REGION_SIZE)
+#define NUMBER_OF_PTE_REGIONS                    ((DESIRED_NUMBER_OF_PHYSICAL_PAGES + NUMBER_OF_DISC_PAGES) / PTE_REGION_SIZE)
 
 // We know that a PTE is in valid format if the valid bit is set
 typedef struct {
@@ -50,46 +40,19 @@ typedef struct {
     };
 } PTE, *PPTE;
 
-typedef struct {
-    // States are FREE, STANDBY, ZEROED (to be added), ACTIVE, and MODIFIED
-    ULONG state:3;
-    ULONG modified:1;
-    ULONG reference:3;
-}PFN_FLAGS/*, *PPFN_FLAGS*/;
-
-typedef struct {
-    LIST_ENTRY entry;
-    PPTE pte;
-    PFN_FLAGS flags;
-    ULONG64 disc_index;
-    // In the future, these locks will be made into single bits instead of massive CRITICAL_SECTIONS
-    CRITICAL_SECTION lock;
-} PFN, *PPFN;
-
 extern PPTE pte_base;
 extern PPTE pte_end;
 
 extern CRITICAL_SECTION pte_region_locks[NUMBER_OF_PTE_REGIONS];
 
-extern PPFN pfn_base;
-extern PPFN pfn_end;
-extern ULONG_PTR highest_frame_number;
-
 extern PPTE pte_from_va(PVOID virtual_address);
 extern PVOID va_from_pte(PPTE pte);
-extern ULONG64 frame_number_from_pfn(PPFN pfn);
-extern PPFN pfn_from_frame_number(ULONG64 frame_number);
 
 extern VOID lock_pte(PPTE pte);
 extern VOID unlock_pte(PPTE pte);
 extern BOOLEAN try_lock_pte(PPTE pte);
-extern VOID lock_pfn(PPFN pfn);
-extern VOID unlock_pfn(PPFN pfn);
-extern BOOLEAN try_lock_pfn(PPFN pfn);
 
 extern PTE read_pte(PPTE pte);
 extern VOID write_pte(PPTE pte, PTE pte_contents);
-extern PFN read_pfn(PPFN pfn);
-extern VOID write_pfn(PPFN pfn, PFN pfn_contents);
 
-#endif //VM_STRUCTS_H
+#endif //VM_PTE_H

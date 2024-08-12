@@ -17,9 +17,6 @@ typedef struct {
 extern FAULT_STATS fault_stats[NUMBER_OF_FAULTING_THREADS];
 extern ULONG faulting_thread_ids[NUMBER_OF_FAULTING_THREADS];
 
-extern HANDLE system_start_event;
-extern HANDLE system_exit_event;
-
 extern ULONG64 num_trims;
 
 extern PVOID allocate_memory(PULONG_PTR num_bytes);

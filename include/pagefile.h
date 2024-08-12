@@ -4,7 +4,6 @@
 #include "hardware.h"
 
 // The number of pages on the page file
-// TODO LM FIX fix this
 #define PAGE_FILE_SIZE_IN_BYTES                  (NUMBER_OF_DISC_PAGES * PAGE_SIZE)
 #define PAGE_FILE_SIZE_IN_BITS                   (PAGE_FILE_SIZE_IN_BYTES * BITS_PER_BYTE)
 
