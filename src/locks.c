@@ -11,6 +11,18 @@ typedef struct {
     // 0 is spin lock, 1 is event lock
 } LOCK, *PLOCK;
 
+// typedef LONG NTSTATUS;
+// #define STATUS_SUCCESS ((NTSTATUS)0x00000000L)
+//
+// extern NTSTATUS NTAPI NtDelayExecution(BOOLEAN Alertable, PLARGE_INTEGER DelayInterval);
+//
+// VOID wait_for_nanoseconds(LONG nanoseconds) {
+//     LARGE_INTEGER interval;
+//     // Convert nanoseconds to 100-nanosecond intervals (negative value for relative time)
+//     interval.QuadPart = -(nanoseconds / 100);
+//
+//     NtDelayExecution(FALSE, &interval);
+// }
 
 VOID initialize_lock(PLOCK lock) {
     lock->lock_semaphore = 0;

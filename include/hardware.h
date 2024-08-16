@@ -25,6 +25,7 @@
 #define DESIRED_NUMBER_OF_PHYSICAL_PAGES         (GB(MEMORY_SIZE_IN_GB) / PAGE_SIZE)
 #define NUMBER_OF_DISC_PAGES                     (GB(PAGE_FILE_SIZE_IN_GB) / PAGE_SIZE)
 
-#define NUMBER_OF_FAULTING_THREADS                 1
+#define NUMBER_OF_FAULTING_THREADS               8
 
 #endif //HARDWARE_H
+

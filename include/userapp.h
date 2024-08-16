@@ -1,20 +1,10 @@
-// Created by ltm14 on 8/2/2023.
-
 #ifndef VM_USERAPP_H
 #define VM_USERAPP_H
 #include <stdio.h>
 #include <Windows.h>
 #include "hardware.h"
+#include "debug.h"
 
-
-typedef struct {
-    ULONG64 num_first_accesses;
-    ULONG64 num_reaccesses;
-    ULONG64 num_faults;
-    ULONG64 num_fake_faults;
-} FAULT_STATS, *PFAULT_STATS;
-
-extern FAULT_STATS fault_stats[NUMBER_OF_FAULTING_THREADS];
 extern ULONG faulting_thread_ids[NUMBER_OF_FAULTING_THREADS];
 
 extern ULONG64 num_trims;

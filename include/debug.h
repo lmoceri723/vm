@@ -1,8 +1,8 @@
 #ifndef VM_DEBUG_H
 #define VM_DEBUG_H
 #include <Windows.h>
-#include "pfn.h"
 #include "pfn_lists.h"
+#include "pfn.h"
 
 // Creates a central switch to turn debug mode on/off
 #define DBG                0
@@ -22,7 +22,9 @@
 #define INITIALIZE_LOCK(x)                       InitializeCriticalSection(&x)
 #endif
 
-#define VA_ACCESS_MAP                            0
+#define VA_ACCESS_MARKING                            0
+
+#define VA_ACCESS_MAP 1
 #if VA_ACCESS_MAP
 extern PBOOLEAN va_access_map;
 #endif
@@ -63,6 +65,16 @@ typedef struct {
 extern READWRITE_LOG_ENTRY page_log[LOG_SIZE];
 extern LONG64 readwrite_log_index;
 #endif
+
+typedef struct {
+    ULONG64 num_first_accesses;
+    ULONG64 num_reaccesses;
+    ULONG64 num_faults;
+    ULONG64 num_fake_faults;
+} FAULT_STATS, *PFAULT_STATS;
+
+
+extern FAULT_STATS fault_stats[NUMBER_OF_FAULTING_THREADS];
 
 extern VOID check_list_integrity(PPFN_LIST listhead, PPFN match_pfn);
 extern VOID log_access(ULONG is_pte, PVOID ppte_or_fn, ULONG operation);

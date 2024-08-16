@@ -2,7 +2,9 @@
 #include "../include/vm.h"
 #include "../include/debug.h"
 
+HANDLE pagefile_handle;
 PVOID page_file;
+
 
 PBITMAP_CHUNK page_file_bitmap;
 PBITMAP_CHUNK page_file_bitmap_end;
@@ -10,7 +12,6 @@ volatile LONG64 free_disc_spot_count;
 
 PULONG64 freed_spaces;
 volatile LONG64 freed_spaces_size;
-
 
 volatile LONG64 last_checked_index;
 
@@ -265,3 +266,17 @@ ULONG64 get_freed_index()
     return index;
 }
 
+VOID read_from_pagefile(ULONG64 disc_index, PVOID dst_va) {
+    PVOID file_view = (char*) page_file + disc_index * PAGE_SIZE;
+    memcpy(dst_va, file_view, PAGE_SIZE);
+}
+
+VOID write_to_pagefile(ULONG64 disc_index, PVOID src_va)
+{
+    PVOID file_view = (char*) page_file + disc_index * PAGE_SIZE;
+    memcpy(file_view, src_va, PAGE_SIZE);
+
+    if (!FlushViewOfFile(file_view, PAGE_SIZE)) {
+        fatal_error("Failed to flush view of file");
+    }
+}

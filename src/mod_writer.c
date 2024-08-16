@@ -1,4 +1,5 @@
 #include <Windows.h>
+#include <stdio.h>
 #include "../include/vm.h"
 #include "../include/debug.h"
 
@@ -196,10 +197,11 @@ BOOLEAN write_page_to_disc(VOID)
     }
 
     // This computes the actual address of where we want to write the page contents in the paging file and copies it
-    PVOID actual_space;
-    actual_space = (PVOID) ((ULONG_PTR) page_file + (disc_index * PAGE_SIZE));
+    // PVOID actual_space;
+    // actual_space = (PVOID) ((ULONG_PTR) page_file + (disc_index * PAGE_SIZE));
 
-    memcpy(actual_space, modified_write_va, PAGE_SIZE);
+    //memcpy(actual_space, modified_write_va, PAGE_SIZE);
+    write_to_pagefile(disc_index, modified_write_va);
 
     // We can now unmap this from our va space as we have finished copying its contents to disc
     unmap_pages(modified_write_va, 1);

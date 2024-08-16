@@ -2,6 +2,7 @@
 #include "../include/vm.h"
 #include "../include/debug.h"
 
+#include <stdio.h>
 #include <system.h>
 volatile ULONG CHECK_INTEGRITY = 0;
 
@@ -10,7 +11,6 @@ READWRITE_LOG_ENTRY page_log[LOG_SIZE];
 LONG64 readwrite_log_index = 0;
 #endif
 
-PBOOLEAN va_access_map;
 
 // Checks the integrity of a pfn list
 // This is very helpful to use when debugging but very expensive
@@ -173,14 +173,27 @@ VOID log_access(ULONG is_pte, PVOID ppte_or_fn, ULONG operation)
     #endif
 }
 
-VOID print_va_access_rate(VOID) {
-    ULONG64 count = 0;
-    ULONG64 virtual_address_size_in_pages = virtual_address_size / PAGE_SIZE;
-    for (ULONG64 i = 0; i < virtual_address_size_in_pages; i++) {
-        if (va_access_map[i] == FALSE) {
-            count++;
+VOID print_va_access_rate(VOID)
+{
+    ULONG64 accessed_ptes = 0;
+
+    PPTE pte = pte_base;
+    while (pte != pte_end)
+    {
+        if (pte->entire_format != 0)
+        {
+            accessed_ptes++;
         }
+        else {
+            ULONG64 pte_index = pte - pte_base;
+            //printf("VA with index of %llu is not accessed\n", pte_index);
+        }
+        pte++;
     }
 
-    printf("get_va_access_rate : %llu pages were not accessed out of %llu\n", count, virtual_address_size_in_pages);
+    ULONG64 total_ptes = pte_end - pte_base;
+    printf("Accessed PTEs: %llu\n", accessed_ptes);
+    printf("Total PTEs: %llu\n", total_ptes);
+    printf("Percent Accessed: %f\n", (double) accessed_ptes / total_ptes);
+
 }

@@ -1,4 +1,5 @@
 #include <Windows.h>
+#include <stdio.h>
 #include "../include/vm.h"
 #include "../include/debug.h"
 
@@ -31,12 +32,29 @@ PVOID repurpose_zero_va;
 // This breaks into the debugger if possible,
 // Otherwise it crashes the program
 // This is only done if our state machine is irreparably broken (or attacked)
+VOID print_error(const char* msg) {
+    DWORD error_code = GetLastError();
+    LPVOID error_msg;
+
+    FormatMessage(
+            FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+            NULL,
+            error_code,
+            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+            (LPTSTR) &error_msg,
+            0, NULL );
+
+    printf("%s: %s\n", msg, (char*)error_msg);
+
+    LocalFree(error_msg);
+}
+
 VOID fatal_error(char *msg)
 {
     if (msg == NULL) {
         msg = "";
     }
-    printf("\n%s", msg);
+    print_error(msg);
 
     DebugBreak();
     exit(1);
@@ -133,8 +151,9 @@ PPFN read_page_on_disc(PPTE pte, PPFN free_page)
     map_pages(modified_read_va, 1, &frame_number);
 
     // This would be a disc driver that does this read and write in a real operating system
-    PVOID source = (PVOID) ((ULONG_PTR) page_file + (pte->disc_format.disc_index * PAGE_SIZE));
-    memcpy(modified_read_va, source, PAGE_SIZE);
+    //PVOID source = (PVOID) ((ULONG_PTR) page_file + (pte->disc_format.disc_index * PAGE_SIZE));
+    //memcpy(modified_read_va, source, PAGE_SIZE);
+    read_from_pagefile(pte->disc_format.disc_index, modified_read_va);
 
     unmap_pages(modified_read_va, 1);
 
@@ -336,9 +355,9 @@ int main (int argc, char** argv)
 
     run_system();
     printf("vm.c : tests finished\n");
-    #if VA_ACCESS_MAP
+
     print_va_access_rate();
-    #endif
+
     deinitialize_system();
 
     return 0;
