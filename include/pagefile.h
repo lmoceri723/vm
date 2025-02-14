@@ -44,6 +44,7 @@ extern volatile LONG64 freed_spaces_size;
 
 extern volatile LONG64 last_checked_index;
 
-extern ULONG64 get_disc_index(VOID);
+extern ULONG64 get_disc_indices(PULONG64 disc_indices, ULONG64 num_indices);
 extern VOID free_disc_index(ULONG64 disc_index);
+VOID free_disc_indices(PULONG64 disc_indices, ULONG64 num_indices)
 #endif //PAGEFILE_H

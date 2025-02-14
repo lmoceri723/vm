@@ -27,19 +27,11 @@ ULONG64 disc_index_to_region(ULONG64 disc_index)
 
 // Called with the freed_spaces_lock and the region lock held
 // Returns the updated ULONG64 with the bits set to 1
-ULONG64 search_chunk_for_free_spots(PULONG64 disc_spot, ULONG64 first_index)
+VOID search_chunk_for_free_spots(PULONG64 disc_spot, ULONG64 first_index, PULONG count, PULONG64 disc_indices, ULONG64 num_indices)
 {
     ULONG64 expected = *disc_spot;
-    if (expected == FULL_BITMAP_CHUNK) {
-        return DISC_INDEX_FAIL_CODE;
-    }
-
-    // Calculate the number of indexes we can store in our stack
-    ULONG64 return_index = DISC_INDEX_FAIL_CODE;
-    ULONG count = 0;
 
     // Variables for the compare exchange
-
     ULONG64 desired = FULL_BITMAP_CHUNK;
     ULONG64 compex_return;
 
@@ -55,53 +47,45 @@ ULONG64 search_chunk_for_free_spots(PULONG64 disc_spot, ULONG64 first_index)
 
         // If it was changed to FULL_BITMAP_CHUNK, then we can't add any more indices
         if (compex_return == FULL_BITMAP_CHUNK) {
-            return DISC_INDEX_FAIL_CODE;
+            return;
         }
 
         expected = compex_return;
     }
 
-    // Intial expected = 0001
-    // desired = 1111
-    // ~expected = 1110
-    // desired & ~expected = 1110
     ULONG64 disc_spot_local = desired & ~expected;
     ULONG64 add_result;
+
     // Iterate over the old value and find the indices of all the free spots we just filled
     for (int bit = 0; bit < BITMAP_CHUNK_SIZE_IN_BITS; bit++)
     {
         ULONG64 bit_mask = (FULL_UNIT << bit);
         if ((disc_spot_local & bit_mask) != EMPTY_UNIT) {
 
-            if (count == 0) {
-                return_index = first_index + bit;
-            } else {
+            if (*count < num_indices) {
+                // Add the index to disc_indices
+                disc_indices[*count] = first_index + bit;
+                count++;
+            } else{
                 add_result = add_freed_index(first_index + bit);
                 if (add_result == DISC_INDEX_FAIL_CODE) {
                     break;
                 }
             }
             disc_spot_local &= ~bit_mask;
-
-            count++;
         }
     }
     // At the end of this, disc_spot_local equals every bit we could not consume
-
     disc_spot_local = ~disc_spot_local;
     InterlockedAnd64((volatile PLONG64) disc_spot, disc_spot_local);
 
     LONG64 last_checked_index_local = first_index;
     InterlockedExchange64(&last_checked_index, last_checked_index_local);
-
-    return return_index;
 }
 
 // Called with the freed_spaces_lock held, only needs to worry about the bitmap region lock
-ULONG64 search_region_for_free_spots(ULONG64 region)
+VOID search_region_for_free_spots(ULONG64 region, PULONG count, PULONG64 disc_indices, ULONG64 num_indices)
 {
-    ULONG64 return_index = DISC_INDEX_FAIL_CODE;
-
     // No lock is gotten here to make reading faster, we only need it to write once we find a free spot
 
     // For each char in the region
@@ -119,40 +103,58 @@ ULONG64 search_region_for_free_spots(ULONG64 region)
         ULONG64 lowest_disc_index = (region * BITMAP_REGION_SIZE_IN_BYTES) + (disc_spot - disc_region_base) * BITMAP_CHUNK_SIZE;
         lowest_disc_index *= BITS_PER_BYTE;
 
-        return_index = search_chunk_for_free_spots(disc_spot, lowest_disc_index);
-        if (return_index != DISC_INDEX_FAIL_CODE)
-        {
-            return return_index;
-        }
+        search_chunk_for_free_spots(disc_spot, lowest_disc_index, count, disc_indices, num_indices);
 
+        if (*count == num_indices)
+        {
+            // We have found enough indices, return
+            return;
+        }
     }
-    return DISC_INDEX_FAIL_CODE;
 }
 
 
-ULONG64 get_disc_index()
+ULONG64 get_disc_indices(PULONG64 disc_indices, ULONG64 num_indices)
 {
-    ULONG64 return_index = DISC_INDEX_FAIL_CODE;
+    ULONG count = 0;
+    ULONG64 return_index;
 
-    return_index = get_freed_index();
-    if (return_index != DISC_INDEX_FAIL_CODE) {
-        return return_index;
+    // Tries to get as many disc indices from the freed spaces stack as possible
+    while (TRUE)
+    {
+        return_index = get_freed_index();
+        if (return_index != DISC_INDEX_FAIL_CODE)
+        {
+            disc_indices[count] = return_index;
+            count++;
+        }
+        else {
+            break;
+        }
     }
 
+    // If we have satisfied our count, return
+    if (count == num_indices)
+    {
+        return count;
+    }
+
+    // Iterate over each bitmap region looking for free spots
     ULONG64 first_bitmap_region = disc_index_to_region(last_checked_index);
 
     for (ULONG64 region = 0; region < BITMAP_SIZE_IN_REGIONS; region++)
     {
         ULONG64 search_region = (first_bitmap_region + region) % BITMAP_SIZE_IN_REGIONS;
-        return_index = search_region_for_free_spots(search_region);
-        if (return_index != DISC_INDEX_FAIL_CODE)
+        search_region_for_free_spots(search_region, &count, disc_indices, num_indices);
+        if (count == num_indices)
         {
-            return return_index;
+            // We have found enough indices, return
+            return count;
         }
     }
 
-    // If we reach this point, we have checked all the spots and found none and return MAX_ULONG64
-    return DISC_INDEX_FAIL_CODE;
+    // If we reach this point, we found less than num_indices indices and return how many we actually got
+    return count;
 }
 
 // This function will double insert a disc index if it is called twice with the same index
@@ -199,6 +201,17 @@ VOID free_disc_index(ULONG64 disc_index)
 
     InterlockedIncrement64(&free_disc_spot_count);
     SetEvent(disc_spot_available_event);
+}
+
+// This will only be slower in the rare edge case that the indices are in the same disc spot as a compare exchange will
+// be done multiple times on it. This needs to be though about.
+// Will sorting and matching to disc spots be worth it in the end?
+VOID free_disc_indices(PULONG64 disc_indices, ULONG64 num_indices)
+{
+    for (ULONG64 i = 0; i < num_indices; i++)
+    {
+        free_disc_index(disc_indices[i]);
+    }
 }
 
 ULONG64 add_freed_index(ULONG64 disc_index)
