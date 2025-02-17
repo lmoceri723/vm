@@ -1,8 +1,5 @@
 #ifndef VM_PFN_H
 #define VM_PFN_H
-
-#include <stdio.h>
-#include <stdlib.h>
 #include <Windows.h>
 #include "pte.h"
 

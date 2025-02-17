@@ -100,43 +100,10 @@ VOID full_virtual_memory_test(VOID) {
 
             // This computes a random virtual address within our range
 
-            // Take the last 3 bits in get tick count
-            //  If the low 3 bits are less than 4, get the next address instead of getting a random address
-
-            //        random_number = (GetTickCount() + i * (GetCurrentThreadId())) << 12;
-            //        random_number %= virtual_address_size_in_pages;
-            //
-            //        arbitrary_va = p + (random_number * PAGE_SIZE) / sizeof(ULONG_PTR);
-            //            i++;
-            //
-            //            if (i >= virtual_address_size_in_pages)
-            //            {
-            //                i = slice_start % virtual_address_size_in_pages;
-            //            }
-            //
-            //            arbitrary_va = p + slice_start + (i * PAGE_SIZE) / sizeof(ULONG_PTR);
-
-            // if (rep % (virtual_address_size_in_pages / 10) == 0) {
-            //     printf("full_virtual_memory_test : thread %llu is %llu%% done\n",
-            //         thread_index, rep * 100 / virtual_address_size_in_pages);
-            // }
             // Calculate arbitrary VA from rep
             ULONG64 offset = slice_start + (rep * PAGE_SIZE) / sizeof(ULONG_PTR);
             offset = offset % virtual_address_size_in_pages;
             arbitrary_va = pointer + offset;
-
-            #if VA_ACCESS_MAP
-            ULONG64 va_index = (ULONG64) arbitrary_va - (ULONG64) va_base;
-            va_index = va_index / PAGE_SIZE;
-            if (va_index >= virtual_address_size_in_pages) {
-                fatal_error("full_virtual_memory_test : va_index is out of bounds");
-            }
-
-            if (va_access_map[va_index] == FALSE) {
-                va_access_map[va_index] = TRUE;
-            }
-            #endif
-
 
             // Write the virtual address into each page
             page_faulted = FALSE;
@@ -174,7 +141,7 @@ VOID full_virtual_memory_test(VOID) {
                 // This is done in the handler, as is referred to in this program as a fake fault
                 page_fault_handler(arbitrary_va, stats);
 
-            } while (TRUE == page_faulted);
+            } while (page_faulted == TRUE);
         }
     }
 
@@ -190,20 +157,12 @@ VOID full_virtual_memory_test(VOID) {
            thread_index, NUM_PASSTHROUGHS, NUM_PASSTHROUGHS * virtual_address_size_in_pages, time_elapsed, time_elapsed / 1000.0,
            thread_index, stats->num_faults, stats->num_fake_faults,
            thread_index, stats->num_first_accesses, stats->num_reaccesses);
-
-    printf("full_virtual_memory_test : thread %lu took %llu trims\n", thread_index, num_trims);
 }
 
 // This function controls a faulting thread
 DWORD faulting_thread(PVOID context)
 {
     UNREFERENCED_PARAMETER(context);
-
-    // This thread needs to be able to react to handles for waking as well as exiting
-    HANDLE handles[4];
-
-    handles[0] = system_start_event;
-    handles[1] = system_exit_event;
 
     WaitForSingleObject(system_start_event, INFINITE);
 

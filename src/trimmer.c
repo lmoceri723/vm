@@ -1,4 +1,5 @@
 #include <Windows.h>
+#include <stdio.h>
 #include "../include/vm.h"
 #include "../include/debug.h"
 

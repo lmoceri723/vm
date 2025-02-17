@@ -1,7 +1,3 @@
-//
-// Created by ltm14 on 8/1/2024.
-//
-
 #ifndef VM_VM_H
 #define VM_VM_H
 #include "system.h"

@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <userapp.h>
 #include <Windows.h>
 #include "../include/vm.h"
 #include "../include/debug.h"
@@ -34,6 +35,8 @@ HANDLE system_start_event;
 CRITICAL_SECTION modified_write_va_lock;
 CRITICAL_SECTION modified_read_va_lock;
 CRITICAL_SECTION repurpose_zero_va_lock;
+
+char pagefilePath[MAX_PATH];
 
 // These are page file handles
 //HANDLE page_file;
@@ -170,15 +173,85 @@ VOID initialize_threads(VOID)
 // This creates our page file
 // Currently, we allocate a chunk of system memory to simulate a page file
 // In the future, we will incorporate a real page file
-VOID initialize_page_file(ULONG64 num_disc_pages)
+// VOID initialize_page_file(ULONG64 num_disc_pages)
+// {
+//     ULONG64 page_file_size_in_bytes;
+//
+//     page_file_size_in_bytes = num_disc_pages * PAGE_SIZE;
+//
+//     // Allocates the memory for the page file
+//     page_file = malloc(page_file_size_in_bytes);
+//     NULL_CHECK(page_file, "create_page_file : could not create page file")
+// }
+
+VOID initialize_pagefile_path()
 {
-    ULONG64 page_file_size_in_bytes;
+    char currentDirectory[MAX_PATH];
 
-    page_file_size_in_bytes = num_disc_pages * PAGE_SIZE;
+    // Get the current directory
+    if(!GetCurrentDirectory(MAX_PATH, currentDirectory)) {
+        printf("Failed to get current directory\n");
+        return;
+    }
 
-    // Allocates the memory for the page file
-    page_file = malloc(page_file_size_in_bytes);
-    NULL_CHECK(page_file, "create_page_file : could not create page file")
+    // Go back one directory
+    char* lastBackslash = strrchr(currentDirectory, '\\');
+    if (lastBackslash == NULL) {
+        printf("Failed to find last backslash\n");
+        return;
+    }
+    *lastBackslash = '\0';
+
+    // Format the path to the pagefile
+    snprintf(pagefilePath, MAX_PATH, "%s%s", currentDirectory, PAGEFILE_RELATIVE_PATH);
+
+    printf("Pagefile path: %s\n", pagefilePath);
+}
+
+VOID initialize_page_file() {
+    LARGE_INTEGER size;
+    size.QuadPart = PAGE_FILE_SIZE_IN_BYTES;
+
+    pagefile_handle = CreateFileA(pagefilePath, GENERIC_READ | GENERIC_WRITE, 0,
+                                  NULL, CREATE_ALWAYS,
+                                  FILE_ATTRIBUTE_NORMAL, NULL);
+
+    if (pagefile_handle == INVALID_HANDLE_VALUE) {
+        printf("pagefilePath: %s\n", pagefilePath);
+        fatal_error("Failed to open pagefile\n");
+    }
+
+    // Set the file size
+    if (!SetFilePointerEx(pagefile_handle, size, NULL, FILE_BEGIN) || !SetEndOfFile(pagefile_handle)) {
+        fatal_error("Failed to set file size\n");
+    }
+
+    HANDLE hMapFile = CreateFileMapping(
+        pagefile_handle,
+        NULL,
+        PAGE_READWRITE,
+        size.HighPart,
+        size.LowPart,
+        NULL
+    );
+
+    if (hMapFile == NULL) {
+        fatal_error("Failed to create file mapping\n");
+    }
+
+    page_file = MapViewOfFile(
+        hMapFile,
+        FILE_MAP_ALL_ACCESS,
+        0,
+        0,
+        PAGE_FILE_SIZE_IN_BYTES
+    );
+
+    if (page_file == NULL) {
+        fatal_error("Failed to map view of file\n");
+    }
+
+    CloseHandle(hMapFile);
 }
 
 VOID initialize_page_file_bitmap(VOID)
@@ -262,6 +335,7 @@ VOID initialize_pte_metadata(VOID)
 {
     ULONG_PTR num_pte_bytes = virtual_address_size / PAGE_SIZE * sizeof(PTE);
     pte_base = malloc(num_pte_bytes);
+
     NULL_CHECK(pte_base, "initialize_pte_metadata : could not allocate memory for pte metadata")
 
     memset(pte_base, 0, num_pte_bytes);
@@ -397,7 +471,9 @@ VOID initialize_system (VOID) {
 
     initialize_pfn_metadata();
 
-    initialize_page_file(NUMBER_OF_DISC_PAGES);
+    initialize_pagefile_path();
+
+    initialize_page_file();
 
     initialize_page_file_bitmap();
 
@@ -407,13 +483,15 @@ VOID initialize_system (VOID) {
 
     initialize_pte_metadata();
 
-    #if VA_ACCESS_MAP
-    initialize_accessed_va_map();
-    #endif
-
     initialize_threads();
 
     printf("initialize_system : system successfully initialized\n");
+}
+
+VOID delete_pagefile() {
+    UnmapViewOfFile(page_file);
+    CloseHandle(pagefile_handle);
+    DeleteFileA(pagefilePath);
 }
 
 // Terminates the program and gives all resources back to the operating system
@@ -430,7 +508,7 @@ VOID deinitialize_system (VOID)
     VirtualFree(modified_write_va, PAGE_SIZE, MEM_RELEASE);
     VirtualFree(va_base, virtual_address_size, MEM_RELEASE);
     free(page_file_bitmap);
-    free(page_file);
+    delete_pagefile();
 
     VirtualFree(pfn_base, physical_page_numbers[physical_page_count - 1] * sizeof(PFN),
                 MEM_RELEASE);
