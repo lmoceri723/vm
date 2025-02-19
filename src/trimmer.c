@@ -16,6 +16,12 @@ void trim(PPTE pte)
 
     lock_pfn(pfn);
 
+    // If the page is being referenced by the modified writer, we cannot trim it
+    if (pfn->flags.reference == 1) {
+        unlock_pfn(pfn);
+        return;
+    }
+
     user_va = va_from_pte(pte);
     NULL_CHECK(user_va, "trim : could not get the va connected to the pte")
 

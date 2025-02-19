@@ -317,7 +317,7 @@ VOID initialize_user_va_space(VOID)
     // We deliberately make this much larger than physical memory to illustrate how we can manage the illusion.
     // We need to still have a large enough amount of physical memory in order to have any performance
 
-    virtual_address_size = (physical_page_count + NUMBER_OF_DISC_PAGES - 1) * PAGE_SIZE;
+    virtual_address_size = (physical_page_count + NUMBER_OF_USER_DISC_PAGES) * PAGE_SIZE;
 
     // Round down to a PAGE_SIZE boundary
     // Uses bit operations instead of modulus to do this quicker
@@ -423,6 +423,7 @@ VOID initialize_pages()
 
     // TODO just find the highest frame number and the minumum frame number
     // Subtract from the pointer
+
     // This sorts the physical page numbers in ascending order
     qsort(physical_page_numbers, physical_page_count, sizeof(ULONG_PTR),
           compare);

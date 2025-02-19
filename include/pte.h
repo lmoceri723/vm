@@ -3,16 +3,19 @@
 #include <Windows.h>
 
 // This number is strategically chosen to be 512, as it corresponds to the number of entries in a page table
-#define PTE_REGION_SIZE                          512
+#define PTE_REGION_SIZE                          (ULONG64) 512
+
+#define NUMBER_OF_AGES                           (ULONG64) 8
+#define BITS_PER_AGE                             (ULONG64) 3
 
 // With a region size of 512, we have 2MB of virtual memory per region
-#define NUMBER_OF_PTE_REGIONS                    ((DESIRED_NUMBER_OF_PHYSICAL_PAGES + NUMBER_OF_DISC_PAGES) / PTE_REGION_SIZE)
+#define NUMBER_OF_PTE_REGIONS                    ((DESIRED_NUMBER_OF_PHYSICAL_PAGES + NUMBER_OF_USER_DISC_PAGES) / PTE_REGION_SIZE)
 
 // We know that a PTE is in valid format if the valid bit is set
 typedef struct {
     ULONG64 valid:1;
     ULONG64 frame_number:40;
-    ULONG64 age:3;
+    ULONG64 age:BITS_PER_AGE;
 } VALID_PTE /*, *PVALID_PTE*/;
 
 // We know that a PTE is in disc format if the valid bit is not set and on_disc is set
@@ -39,6 +42,22 @@ typedef struct {
         ULONG64 entire_format;
     };
 } PTE, *PPTE;
+
+typedef struct {
+    ULONG64 count : 10;
+} AGE_COUNT;
+
+typedef struct {
+    UCHAR count : 10;
+} AGE_COUNT2;
+
+typedef struct {
+    ULONG64 age_bitmap[(NUMBER_OF_AGES * 10) / 64];
+    AGE_COUNT age_counts[NUMBER_OF_AGES];
+    ULONG64 active_bitmap[PTE_REGION_SIZE / 64];
+    LIST_ENTRY entry;
+    //LOCK lock;
+} PTE_REGION, *PPTE_REGION;
 
 extern PPTE pte_base;
 extern PPTE pte_end;

@@ -4,6 +4,8 @@ cmake-build-debug/
 build/
 docs/
 performance-tests/
+pagefile/
+access_logs/
 
 # Prerequisites
 *.d

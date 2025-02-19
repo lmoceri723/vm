@@ -133,7 +133,7 @@ PPFN pop_from_list_head(PPFN_LIST listhead)
 }
 
 // Returns a locked page
-PFN_LIST batch_pop_from_list_head(PPFN_LIST listhead, PPFN_LIST batch_list, ULONG64 batch_size)
+PFN_LIST batch_pop_from_list_head(PPFN_LIST listhead, PPFN_LIST batch_list, ULONG64 batch_size, BOOLEAN reference_mode)
 {
     PPFN peeked_page;
     PLIST_ENTRY flink_entry;
@@ -152,15 +152,22 @@ PFN_LIST batch_pop_from_list_head(PPFN_LIST listhead, PPFN_LIST batch_list, ULON
 
         peeked_page = CONTAINING_RECORD(flink_entry, PFN, entry);
         // Try to lock the pfn at the head
-        // TODO We now need to skip past the page if we can't lock it and try the next one
         if (try_lock_pfn(peeked_page) == TRUE) {
-            flink_entry = flink_entry->Flink;
             remove_from_list(peeked_page);
             add_to_list_tail(peeked_page, batch_list);
+
+            // Clear the modified bit, as it is used to track whether the page has been faulted on
+            // This allows the modified writer to know if the page has been written to after being popped from the list
+            peeked_page->flags.modified = 0;
+
+            // If the reference mode is on, we need to set the reference bit to 1 and then unlock the page
+            if (reference_mode == TRUE) {
+                peeked_page->flags.reference = 1;
+                unlock_pfn(peeked_page);
+            }
         }
-        else {
-            flink_entry = flink_entry->Flink;
-        }
+        // The next entry should be moved to no matter what, as we have moved on from the current page
+        flink_entry = flink_entry->Flink;
     }
 
     return *batch_list;
@@ -202,4 +209,20 @@ VOID add_to_list_head(PPFN pfn, PPFN_LIST listhead) {
     #if READWRITE_LOGGING
     log_access(IS_A_FRAME_NUMBER, (PVOID) frame_number_from_pfn(pfn), INSERT_HEAD);
     #endif
+}
+
+// This functiion takes an existing PFN list and links it to the tail of another list
+// It is called with all necessary locks held for PFNs and PFN_LISTS
+// This destroys the last list
+VOID link_list_to_tail(PPFN_LIST first, PPFN_LIST last) {
+    PLIST_ENTRY first_blink = first->entry.Blink;
+    PLIST_ENTRY last_flink = last->entry.Flink;
+    PLIST_ENTRY last_blink = last->entry.Blink;
+
+    first_blink->Flink = last_flink;
+    last_flink->Blink = first_blink;
+    last_blink->Flink = &first->entry;
+    first->entry.Blink = last_blink;
+
+    first->num_pages += last->num_pages;
 }

@@ -46,5 +46,7 @@ extern volatile LONG64 last_checked_index;
 
 extern ULONG64 get_disc_indices(PULONG64 disc_indices, ULONG64 num_indices);
 extern VOID free_disc_index(ULONG64 disc_index);
-VOID free_disc_indices(PULONG64 disc_indices, ULONG64 num_indices)
+VOID free_disc_indices(PULONG64 disc_indices, ULONG64 num_indices, ULONG64 start_index);
+
+VOID write_to_pagefile(ULONG64 disc_index, PVOID src_va);
 #endif //PAGEFILE_H

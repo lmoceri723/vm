@@ -23,7 +23,11 @@
 #define PAGE_FILE_SIZE_IN_GB                     ((ULONG64) MEMORY_SIZE_IN_GB * 2)
 
 #define DESIRED_NUMBER_OF_PHYSICAL_PAGES         (GB(MEMORY_SIZE_IN_GB) / PAGE_SIZE)
-#define NUMBER_OF_DISC_PAGES                     (GB(PAGE_FILE_SIZE_IN_GB) / PAGE_SIZE)
+
+#define NUMBER_OF_USER_DISC_PAGES                (GB(PAGE_FILE_SIZE_IN_GB) / PAGE_SIZE)
+// Add an additional extra 16MB of disc space for when the system is under heavy load
+#define NUMBER_OF_SYSTEM_DISC_PAGES              (MB(16) / PAGE_SIZE)
+#define NUMBER_OF_DISC_PAGES                     (NUMBER_OF_USER_DISC_PAGES + NUMBER_OF_SYSTEM_DISC_PAGES)
 
 #define NUMBER_OF_FAULTING_THREADS               8
 

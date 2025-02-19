@@ -10,10 +10,7 @@ include_directories(include)
 file(GLOB SOURCES "src/*.c")
 
 # Configure executable
-add_executable(vm ${SOURCES}
-        include/pagefile.h
-        src/locks.c
-        src/pte.c)
+add_executable(vm ${SOURCES})
 
 # Configure installation
 install(TARGETS vm DESTINATION bin)

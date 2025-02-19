@@ -120,6 +120,12 @@ ULONG64 get_disc_indices(PULONG64 disc_indices, ULONG64 num_indices)
     ULONG count = 0;
     ULONG64 return_index;
 
+    // If our free_disc_spot_count is zero, we can't get any indices and return without checking the bitmap
+    if (free_disc_spot_count == 0)
+    {
+        return 0;
+    }
+
     // Tries to get as many disc indices from the freed spaces stack as possible
     while (TRUE)
     {
@@ -137,6 +143,8 @@ ULONG64 get_disc_indices(PULONG64 disc_indices, ULONG64 num_indices)
     // If we have satisfied our count, return
     if (count == num_indices)
     {
+        // Decrement the free_disc_spot_count by the number of indices we got
+        InterlockedExchange64(&free_disc_spot_count, free_disc_spot_count - count);
         return count;
     }
 
@@ -149,12 +157,14 @@ ULONG64 get_disc_indices(PULONG64 disc_indices, ULONG64 num_indices)
         search_region_for_free_spots(search_region, &count, disc_indices, num_indices);
         if (count == num_indices)
         {
-            // We have found enough indices, return
-            return count;
+            // We have found enough indices, break
+            break;
         }
     }
 
-    // If we reach this point, we found less than num_indices indices and return how many we actually got
+    // If we didn't break, we found less than num_indices indices and return how many we actually got
+    // If we did break, we got num_indices indices and return that
+    InterlockedExchange64(&free_disc_spot_count, free_disc_spot_count - count);
     return count;
 }
 
@@ -207,9 +217,9 @@ VOID free_disc_index(ULONG64 disc_index)
 // This will only be slower in the rare edge case that the indices are in the same disc spot as a compare exchange will
 // be done multiple times on it. This needs to be though about.
 // Will sorting and matching to disc spots be worth it in the end?
-VOID free_disc_indices(PULONG64 disc_indices, ULONG64 num_indices)
+VOID free_disc_indices(PULONG64 disc_indices, ULONG64 num_indices, ULONG64 start_index)
 {
-    for (ULONG64 i = 0; i < num_indices; i++)
+    for (ULONG64 i = start_index; i < num_indices; i++)
     {
         free_disc_index(disc_indices[i]);
     }
@@ -247,6 +257,8 @@ ULONG64 add_freed_index(ULONG64 disc_index)
     return disc_index;
 }
 
+// Get a disc index from the freed spaces stack
+// Does not decrement the free_disc_spot_count, as this is done by the caller
 ULONG64 get_freed_index()
 {
     ULONG64 expected = freed_spaces_size;
@@ -284,8 +296,7 @@ VOID read_from_pagefile(ULONG64 disc_index, PVOID dst_va) {
     memcpy(dst_va, file_view, PAGE_SIZE);
 }
 
-VOID write_to_pagefile(ULONG64 disc_index, PVOID src_va)
-{
+VOID write_to_pagefile(ULONG64 disc_index, PVOID src_va) {
     PVOID file_view = (char*) page_file + disc_index * PAGE_SIZE;
     memcpy(file_view, src_va, PAGE_SIZE);
 

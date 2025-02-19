@@ -3,21 +3,6 @@
 #include "../include/vm.h"
 #include "../include/debug.h"
 
-/* Medium Changes */
-// LM FIX CHANGE BITMAP CHUNK SIZE TO 64 BITS
-// LM FIX IMPLEMENT ONE BIT LOCKS
-
-/* Large Scale Changes */
-// LM FUTURE FIX IMPLEMENT LOCKS FOR ALL SYSTEM VAS
-// LM FUTURE FIX IMPLEMENT NEW THREAD ACTIVATION METHOD
-// LM FUTURE FIX IMPLEMENT MULTIPLE FAULTING/TRIMMING/AGING THREADS
-// LM FUTURE FIX IMPLEMENT API AND FREEING MEMORY
-// LM FUTURE FIX IMPROVE THE SCALABILITY OF THIS PROGRAM TO HANDLE MORE MEMORY
-// LM FUTURE FIX IMPLEMENT A REAL DISC DRIVER
-// LM FUTURE FIX COME UP WITH A BETTER WAY TO AGE PAGES
-
-// Ask about the HANDLE datatype
-
 PPFN get_free_page(VOID);
 PPFN read_page_on_disc(PPTE pte, PPFN free_page);
 
@@ -192,7 +177,6 @@ VOID page_fault_handler(PVOID arbitrary_va, PFAULT_STATS stats)
     // We know this page is active because its valid bit is set, which only exists in a memory format pte
     if (pte_contents.memory_format.valid == 1)
     {
-        // LM MULTITHREADING FIX write a function that uses a dictionary to update debug stats and uses interlocked increment
         stats->num_fake_faults++;
         // We do this check to avoid a pte write
         if (pte_contents.memory_format.age == 0)

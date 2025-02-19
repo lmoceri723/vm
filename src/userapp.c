@@ -8,21 +8,6 @@
 
 #pragma comment(lib, "advapi32.lib")
 
-
-// TODO ISSUES
-// Aging and Trimming - where is he walking from and how far should he walk
-// is he keeping a good differentiated set of ages
-/*
- [10:42 PM] Landy Wang
-The meeting was about aging and trimming pages in a virtual memory subsystem.
- The participants discussed the problem areas of high cycles consumption by the program,
- which were mainly caused by aging for 45% and modified writing for 45%.
- They also looked at an excerpt of a trace to analyze the issue.
- They agreed to look at the spots in the page file array and the single lock for tomorrow.
-
- */
-
-
 // This corresponds to how many times a random va will be written to in our test
 // We are using MB(x) as a placeholder for 2^20, the purpose of this is just to get a large number
 // This number represents the number of times we will access a random virtual address in our range
@@ -102,8 +87,14 @@ VOID full_virtual_memory_test(VOID) {
 
             // Calculate arbitrary VA from rep
             ULONG64 offset = slice_start + (rep * PAGE_SIZE) / sizeof(ULONG_PTR);
-            offset = offset % virtual_address_size_in_pages;
+            offset = offset % num_bytes;
             arbitrary_va = pointer + offset;
+
+            // If rep is a multuple of 10% of the virtual address size in pages, print the progress
+            if (rep % (virtual_address_size_in_pages / 10) == 0) {
+                printf("full_virtual_memory_test : thread %lu accessing passthrough %llu, rep %llu\n",
+                       thread_index, passthrough, rep);
+            }
 
             // Write the virtual address into each page
             page_faulted = FALSE;
