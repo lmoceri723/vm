@@ -139,7 +139,7 @@ DWORD modified_write_thread(PVOID context)
 
     // This waits for the system to start before doing anything
     WaitForSingleObject(system_start_event, INFINITE);
-    printf("mod_writer.c : modified write thread started\n");
+    set_modified_status("modified write thread started");
 
     ULONG64 previous_available_pages = free_page_list.num_pages + standby_page_list.num_pages;
     ULONG64 previous_tick_count = GetTickCount64();
@@ -150,6 +150,7 @@ DWORD modified_write_thread(PVOID context)
         ULONG index = WaitForMultipleObjects(ARRAYSIZE(handles), handles, FALSE, 1000);
         if (index == 0)
         {
+            set_modified_status("modified write thread exited");
             break;
         }
 

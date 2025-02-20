@@ -3,6 +3,7 @@
 #include <Windows.h>
 #include "pfn_lists.h"
 #include "pfn.h"
+#include "console.h"
 
 // Creates a central switch to turn debug mode on/off
 #define DBG                0
@@ -72,8 +73,6 @@ typedef struct {
     ULONG64 num_faults;
     ULONG64 num_fake_faults;
 } FAULT_STATS, *PFAULT_STATS;
-
-extern CRITICAL_SECTION console_lock;
 
 extern FAULT_STATS fault_stats[NUMBER_OF_FAULTING_THREADS];
 

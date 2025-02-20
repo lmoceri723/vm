@@ -17,66 +17,8 @@
 #define NUM_PASSTHROUGHS  ((ULONG64) 2)
 
 ULONG64 num_trims = 0;
-BOOL console_initialized = FALSE;
-
-static VOID position_cursor(SHORT row, SHORT col) {
-    HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-    COORD pos = {col, row};
-    SetConsoleCursorPosition(hConsole, pos);
-    fflush(stdout);
-}
-
-static VOID print_bar(int thread_id, double fraction, ULONG64 passthrough, ULONG64 total_passthroughs, ULONG64 faults) {
-    int fill = (int)(fraction * BAR_WIDTH);
-    char bar[BAR_WIDTH + 1];
-    for (int i = 0; i < BAR_WIDTH; i++) {
-        bar[i] = (i < fill) ? '#' : ' ';
-    }
-    bar[BAR_WIDTH] = '\0';
-
-    HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-    COORD pos = {0, (SHORT)thread_id};
-    SetConsoleCursorPosition(hConsole, pos);
-
-    double percent = fraction * 100.0;
-
-    printf("\x1b[33mThread %d\x1b[0m [", thread_id);
-    for (int i = 0; i < BAR_WIDTH; i++) {
-        if (bar[i] == '#') {
-            printf("\x1b[32m#\x1b[0m");
-        } else {
-            printf(" ");
-        }
-    }
-    printf("] Pass %llu/%llu Faults: %llu (%.2f%%)", passthrough, total_passthroughs, faults, percent);
-    fflush(stdout);
-}
-
-VOID setup_terminal(VOID) {
-    if (!console_initialized) {
-        InitializeCriticalSection(&console_lock);
-
-        HANDLE console = GetStdHandle(STD_OUTPUT_HANDLE);
-
-        system("cls");
-
-        DWORD mode;
-        GetConsoleMode(console, &mode);
-        SetConsoleMode(console,
-            mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING
-                | DISABLE_NEWLINE_AUTO_RETURN
-                | ENABLE_PROCESSED_OUTPUT);
-
-        for (int i = 0; i < NUMBER_OF_FAULTING_THREADS; i++) {
-            printf("\n");
-        }
-
-        console_initialized = TRUE;
-    }
-}
 
 VOID full_virtual_memory_test(VOID) {
-
     PULONG_PTR arbitrary_va;
     // ULONG random_number;
     BOOL page_faulted;
@@ -93,8 +35,6 @@ VOID full_virtual_memory_test(VOID) {
     ULONG thread_id;
     ULONG thread_index;
 
-    setup_terminal();
-
     // Compute faulting stats for the thread using thread index in the array
     thread_id = GetCurrentThreadId();
     thread_index = 0;
@@ -105,15 +45,12 @@ VOID full_virtual_memory_test(VOID) {
         }
     }
 
+    if (thread_index == 0) {
+        print_fatal_error("test");
+    }
+
     SHORT thread_line = (SHORT)(thread_index);
     PFAULT_STATS stats = &fault_stats[thread_index];
-
-    // Initialize thread's line
-    EnterCriticalSection(&console_lock);
-    position_cursor(thread_line, 0);
-    printf("\rThread %lu: Starting test...", thread_index);
-    fflush(stdout);
-    LeaveCriticalSection(&console_lock);
 
     // This replaces a malloc call in our system
     // Right now, we are just giving a set amount to the caller
@@ -157,10 +94,8 @@ VOID full_virtual_memory_test(VOID) {
 
 
             if (rep % 10000 == 0) {
-                double fraction = (double)(rep + 1) / (double)virtual_address_size_in_pages;
-                EnterCriticalSection(&console_lock);
-                print_bar(thread_index, fraction, passthrough + 1, NUM_PASSTHROUGHS, stats->num_faults);
-                LeaveCriticalSection(&console_lock);
+                double fraction = (double)rep / virtual_address_size_in_pages;
+                print_bar(thread_index, fraction, passthrough, NUM_PASSTHROUGHS, stats->num_faults);
             }
 
             // Write the virtual address into each page
@@ -208,17 +143,7 @@ VOID full_virtual_memory_test(VOID) {
     time_elapsed = end_time - start_time;
 
     // Final status update
-    EnterCriticalSection(&console_lock);
-    position_cursor(thread_line, 0);
-    printf("\r\x1b[33mThread %lu\x1b[0m: Complete - %llu passes, %lu ms, Faults: %llu, Reaccesses: %llu    ",
-        thread_index,
-        NUM_PASSTHROUGHS,
-        time_elapsed,
-        stats->num_faults,
-        stats->num_reaccesses
-    );
-    fflush(stdout);
-    LeaveCriticalSection(&console_lock);
+    // TODO
 
     // Consolidated into one print statement
     printf("\nfull_virtual_memory_test : thread %lu finished accessing %llu passthroughs "

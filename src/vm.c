@@ -17,32 +17,15 @@ PVOID repurpose_zero_va;
 // This breaks into the debugger if possible,
 // Otherwise it crashes the program
 // This is only done if our state machine is irreparably broken (or attacked)
-VOID print_error(const char* msg) {
-    DWORD error_code = GetLastError();
-    LPVOID error_msg;
-
-    FormatMessage(
-            FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-            NULL,
-            error_code,
-            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-            (LPTSTR) &error_msg,
-            0, NULL );
-
-    printf("%s: %s\n", msg, (char*)error_msg);
-
-    LocalFree(error_msg);
-}
-
 VOID fatal_error(char *msg)
 {
     if (msg == NULL) {
-        msg = "";
+        msg = "system unexpectedly terminated";
     }
-    print_error(msg);
+    print_fatal_error(msg);
 
-    DebugBreak();
-    exit(1);
+    //DebugBreak();
+    TerminateProcess(GetCurrentProcess(), 1);
 }
 
 VOID map_pages(PVOID virtual_address, ULONG_PTR num_pages, PULONG_PTR page_array)
@@ -338,9 +321,8 @@ int main (int argc, char** argv)
     initialize_system();
 
     run_system();
-    printf("vm.c : tests finished\n");
 
-    print_va_access_rate();
+    //print_va_access_rate();
 
     deinitialize_system();
 

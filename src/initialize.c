@@ -4,6 +4,7 @@
 #include <Windows.h>
 #include "../include/vm.h"
 #include "../include/debug.h"
+#include "../include/console.h"
 
 #pragma comment(lib, "advapi32.lib")
 
@@ -45,6 +46,8 @@ char pagefilePath[MAX_PATH];
 // This is Windows-specific code to acquire a privilege.
 VOID GetPrivilege(VOID)
 {
+    set_initialize_status("initialize_system", "getting privilege");
+
     struct {
         DWORD Count;
         LUID_AND_ATTRIBUTES Privilege [1];
@@ -95,6 +98,7 @@ VOID GetPrivilege(VOID)
 // This function is used to initialize all the locks used in the system
 VOID initialize_locks(VOID)
 {
+    set_initialize_status("initialize_system", "setting up locks");
     INITIALIZE_LOCK(modified_write_va_lock);
     INITIALIZE_LOCK(modified_read_va_lock);
     INITIALIZE_LOCK(repurpose_zero_va_lock);
@@ -112,6 +116,7 @@ VOID initialize_locks(VOID)
 // This function is used to initialize all the events used in the system
 VOID initialize_events(VOID)
 {
+    set_initialize_status("initialize_system", "setting up events");
     // Synchronization Events
     wake_aging_event = CreateEvent(NULL, FALSE, FALSE, NULL);
     NULL_CHECK(wake_aging_event, "initialize_events : could not initialize wake_aging_event")
@@ -204,11 +209,13 @@ VOID initialize_pagefile_path()
 
     // Format the path to the pagefile
     snprintf(pagefilePath, MAX_PATH, "%s%s", currentDirectory, PAGEFILE_RELATIVE_PATH);
-
-    printf("Pagefile path: %s\n", pagefilePath);
 }
 
 VOID initialize_page_file() {
+    set_initialize_status("initialize_system", "configuring page file");
+
+    initialize_pagefile_path();
+
     LARGE_INTEGER size;
     size.QuadPart = PAGE_FILE_SIZE_IN_BYTES;
 
@@ -256,6 +263,8 @@ VOID initialize_page_file() {
 
 VOID initialize_page_file_bitmap(VOID)
 {
+    set_initialize_status("initialize_system", "creating page file bitmap");
+
     // Get the number of pages on the disc and calculate the size of the bitmap
 
     // Allocates the memory for the disc in use bitmap
@@ -279,6 +288,8 @@ VOID initialize_page_file_bitmap(VOID)
 // This function initializes our page lists
 VOID initialize_page_lists(VOID)
 {
+    set_initialize_status("initialize_system", "creating free, modified, and standby page lists");
+
     initialize_listhead(&free_page_list);
     free_page_list.num_pages = 0;
 
@@ -295,6 +306,8 @@ VOID initialize_page_lists(VOID)
 // Or when we move a page from the page file to memory and vice versa
 VOID initialize_system_va_space(VOID)
 {
+    set_initialize_status("initialize_system", "setting up system VAs");
+
     // TODO MAKE THIS A GLOBAL CONSTANT
     modified_write_va = VirtualAlloc(NULL,PAGE_SIZE * 256,MEM_RESERVE | MEM_PHYSICAL,
                                      PAGE_READWRITE);
@@ -312,6 +325,8 @@ VOID initialize_system_va_space(VOID)
 // This function initializes our virtual address space
 VOID initialize_user_va_space(VOID)
 {
+    set_initialize_status("initialize_system", "initializing user va space");
+
     // Reserve a user address space region using the Windows kernel AWE (address windowing extensions) APIs
     // This will let us connect physical pages of our choosing to any given virtual address within our allocated region
     // We deliberately make this much larger than physical memory to illustrate how we can manage the illusion.
@@ -333,6 +348,8 @@ VOID initialize_user_va_space(VOID)
 // This function initializes the PTEs that we use to map virtual addresses to physical pages
 VOID initialize_pte_metadata(VOID)
 {
+    set_initialize_status("initialize_system", "creating PTEs");
+
     ULONG_PTR num_pte_bytes = virtual_address_size / PAGE_SIZE * sizeof(PTE);
     pte_base = malloc(num_pte_bytes);
 
@@ -354,6 +371,8 @@ VOID insert_tail_list(PLIST_ENTRY listhead, PLIST_ENTRY entry) {
 // This function initializes the PFNs that we use to track the state of physical pages
 VOID initialize_pfn_metadata(VOID)
 {
+    set_initialize_status("initialize_system", "initializing PFNs");
+
     // This holds the highest frame number in our page pool
     // We need this because the operating system gives us random pages from its pool instead of a sequential range
     highest_frame_number = physical_page_numbers[physical_page_count - 1];
@@ -404,6 +423,8 @@ VOID initialize_pfn_metadata(VOID)
 // This function initializes our page pool
 VOID initialize_pages()
 {
+    set_initialize_status("initialize_system", "Requesting physical pages from the system");
+
     physical_page_count = DESIRED_NUMBER_OF_PHYSICAL_PAGES;
 
     // We use this array to store all the frame numbers of every page we take
@@ -444,9 +465,21 @@ int compare (const void *a, const void *b) {
     return ( *(PULONG_PTR) a - *(PULONG_PTR) b );
 }
 
-VOID initialize_console_lock(VOID)
-{
+void initialize_console(void) {
     InitializeCriticalSection(&console_lock);
+
+    HANDLE console = GetStdHandle(STD_OUTPUT_HANDLE);
+
+    system("cls");
+
+    DWORD mode;
+    GetConsoleMode(console, &mode);
+    SetConsoleMode(console,
+        mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING
+            | DISABLE_NEWLINE_AUTO_RETURN
+            | ENABLE_PROCESSED_OUTPUT);
+
+    set_initialize_status("initialize_system", "initializing console");
 }
 
 VOID run_system(VOID)
@@ -461,8 +494,9 @@ VOID run_system(VOID)
 
 // This function fully initializes our system
 VOID initialize_system (VOID) {
+    initialize_console();
 
-    // First, acquire privilege as the operating system reserves the sole right to allocate pages.
+    // Acquire privilege as the operating system reserves the sole right to allocate pages.
     GetPrivilege();
 
     physical_page_handle = GetCurrentProcess();
@@ -477,8 +511,6 @@ VOID initialize_system (VOID) {
 
     initialize_pfn_metadata();
 
-    initialize_pagefile_path();
-
     initialize_page_file();
 
     initialize_page_file_bitmap();
@@ -489,11 +521,9 @@ VOID initialize_system (VOID) {
 
     initialize_pte_metadata();
 
-    initialize_console_lock();
+    set_initialize_status("initialize_system", "system successfully initialized, running tests");
 
     initialize_threads();
-
-    printf("initialize_system : system successfully initialized\n");
 }
 
 VOID delete_pagefile() {
@@ -505,12 +535,13 @@ VOID delete_pagefile() {
 // Terminates the program and gives all resources back to the operating system
 VOID deinitialize_system (VOID)
 {
+    set_initialize_status("deinitialize_system", "Tests finished, deinitializing system");
+
     // We need to close all system threads and wait for them to exit before proceeding
     // This happens so that no thread tries to access a data structure that we have freed
     SetEvent(system_exit_event);
     WaitForMultipleObjects(NUMBER_OF_FAULTING_THREADS, system_handles, TRUE, INFINITE);
 
-    DeleteCriticalSection(&console_lock);
     // Now that we're done with our memory, we are able to free it
     free(pte_base);
     VirtualFree(modified_read_va, PAGE_SIZE, MEM_RELEASE);
@@ -526,5 +557,5 @@ VOID deinitialize_system (VOID)
     FreeUserPhysicalPages(physical_page_handle,&physical_page_count,
                           physical_page_numbers);
 
-    printf("deinitialize_system : system successfully deinitialized\n");
+    set_initialize_status("deinitialize_system", "tests finished, system successfully deinitialized");
 }

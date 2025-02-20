@@ -6,5 +6,6 @@
 #include "pfn.h"
 #include "pfn_lists.h"
 #include "pagefile.h"
+#include "console.h"
 
 #endif //VM_VM_H

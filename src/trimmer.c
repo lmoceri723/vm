@@ -143,7 +143,7 @@ DWORD trim_thread(PVOID context) {
 
     // Wait for the system to start before beginning to trim pages
     WaitForSingleObject(system_start_event, INFINITE);
-    printf("trimmer.c : aging and trimming thread started\n");
+    set_trim_status("trimming thread started");
 
     // This thread infinitely waits to be woken up by other threads until the end of the program
     while (TRUE)
@@ -153,6 +153,7 @@ DWORD trim_thread(PVOID context) {
                                              FALSE, INFINITE);
         if (index == 0)
         {
+            set_trim_status("trimming thread exited");
             break;
         }
 

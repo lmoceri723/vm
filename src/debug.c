@@ -2,10 +2,10 @@
 #include "../include/vm.h"
 #include "../include/debug.h"
 
+
 #include <stdio.h>
 #include <system.h>
 volatile ULONG CHECK_INTEGRITY = 0;
-CRITICAL_SECTION console_lock;
 
 #if READWRITE_LOGGING
 READWRITE_LOG_ENTRY page_log[LOG_SIZE];
@@ -196,5 +196,4 @@ VOID print_va_access_rate(VOID)
     printf("Accessed PTEs: %llu\n", accessed_ptes);
     printf("Total PTEs: %llu\n", total_ptes);
     printf("Percent Accessed: %f\n", (double) accessed_ptes / total_ptes);
-
 }
