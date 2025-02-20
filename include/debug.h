@@ -73,6 +73,7 @@ typedef struct {
     ULONG64 num_fake_faults;
 } FAULT_STATS, *PFAULT_STATS;
 
+extern CRITICAL_SECTION console_lock;
 
 extern FAULT_STATS fault_stats[NUMBER_OF_FAULTING_THREADS];
 

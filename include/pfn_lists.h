@@ -17,7 +17,7 @@ extern VOID remove_from_list(PPFN pfn);
 extern VOID add_to_list_tail(PPFN pfn, PPFN_LIST listhead);
 extern VOID add_to_list_head(PPFN pfn, PPFN_LIST listhead);
 extern PPFN pop_from_list_head(PPFN_LIST listhead);
-extern PFN_LIST batch_pop_from_list_head(PPFN_LIST listhead, PPFN_LIST batch_list, ULONG64 batch_size);
+extern PFN_LIST batch_pop_from_list_head(PPFN_LIST listhead, PPFN_LIST batch_list, ULONG64 batch_size, BOOLEAN reference_mode);
 
 extern VOID initialize_listhead(PPFN_LIST listhead);
 extern BOOLEAN is_list_empty(PPFN_LIST listhead);

@@ -43,17 +43,10 @@ typedef struct {
     };
 } PTE, *PPTE;
 
-typedef struct {
-    ULONG64 count : 10;
-} AGE_COUNT;
+
 
 typedef struct {
-    UCHAR count : 10;
-} AGE_COUNT2;
-
-typedef struct {
-    ULONG64 age_bitmap[(NUMBER_OF_AGES * 10) / 64];
-    AGE_COUNT age_counts[NUMBER_OF_AGES];
+    ULONG64 age_counts[(NUMBER_OF_AGES * 10) / 64];
     ULONG64 active_bitmap[PTE_REGION_SIZE / 64];
     LIST_ENTRY entry;
     //LOCK lock;

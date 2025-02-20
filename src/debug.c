@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <system.h>
 volatile ULONG CHECK_INTEGRITY = 0;
+CRITICAL_SECTION console_lock;
 
 #if READWRITE_LOGGING
 READWRITE_LOG_ENTRY page_log[LOG_SIZE];

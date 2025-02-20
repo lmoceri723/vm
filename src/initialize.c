@@ -444,6 +444,11 @@ int compare (const void *a, const void *b) {
     return ( *(PULONG_PTR) a - *(PULONG_PTR) b );
 }
 
+VOID initialize_console_lock(VOID)
+{
+    InitializeCriticalSection(&console_lock);
+}
+
 VOID run_system(VOID)
 {
     // This sets the event to start the system
@@ -484,6 +489,8 @@ VOID initialize_system (VOID) {
 
     initialize_pte_metadata();
 
+    initialize_console_lock();
+
     initialize_threads();
 
     printf("initialize_system : system successfully initialized\n");
@@ -503,6 +510,7 @@ VOID deinitialize_system (VOID)
     SetEvent(system_exit_event);
     WaitForMultipleObjects(NUMBER_OF_FAULTING_THREADS, system_handles, TRUE, INFINITE);
 
+    DeleteCriticalSection(&console_lock);
     // Now that we're done with our memory, we are able to free it
     free(pte_base);
     VirtualFree(modified_read_va, PAGE_SIZE, MEM_RELEASE);

@@ -3,7 +3,7 @@
 #include "../include/vm.h"
 #include "../include/debug.h"
 
-#define MAX_MOD_BATCH                   256
+#define MAX_MOD_BATCH                   ((ULONG64) 256)
 
 #define PAGE_WRITE_FUNCTION            write_page_to_disc
 
@@ -26,7 +26,7 @@ BOOLEAN write_pages_to_disc(VOID)
     }
 
     // Get as many disc indices as we can
-    ULONG64 disc_indices[target_pages];
+    ULONG64 disc_indices[MAX_MOD_BATCH];
     ULONG num_returned_indices = get_disc_indices(disc_indices, target_pages);
     if (num_returned_indices == 0)
     {
@@ -47,17 +47,17 @@ BOOLEAN write_pages_to_disc(VOID)
     if (modified_page_list.num_pages == 0)
     {
         LeaveCriticalSection(&modified_page_list.lock);
-        free_disc_indices(&disc_indices, num_returned_indices, 0);
+        free_disc_indices(disc_indices, num_returned_indices, 0);
         return FALSE;
     }
 
     // Pop the modified pages
-    batch_pop_from_list_head(&modified_page_list, &batch_list, target_pages);
+    batch_pop_from_list_head(&modified_page_list, &batch_list, target_pages, TRUE);
     LeaveCriticalSection(&modified_page_list.lock);
 
 
     // Find the frame numbers associated with the PFNs
-    ULONG64 frame_numbers[batch_list.num_pages];
+    ULONG64 frame_numbers[MAX_MOD_BATCH];
     PLIST_ENTRY entry = batch_list.entry.Flink;
     for (ULONG64 i = 0; i < target_pages; i++)
     {
@@ -124,7 +124,6 @@ BOOLEAN write_pages_to_disc(VOID)
     return TRUE;
 }
 
-// TODO check texts with landy and implement what we discussed
 // This controls the thread that constantly writes pages to disc when prompted by other threads
 // In the future this should use a fraction of the CPU if the system cannot give it a full core
 DWORD modified_write_thread(PVOID context)
@@ -173,7 +172,6 @@ DWORD modified_write_thread(PVOID context)
             // Then create a window of time to write these pages
             ULONG64 write_start = time_until_no_available_pages - (write_duration * (available_pages / MAX_MOD_BATCH));
 
-            ULONG64 start_tick = GetTickCount64();
             if (GetTickCount64() >= write_start)
             {
                 ULONG64 write_start_tick = GetTickCount64();
