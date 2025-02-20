@@ -67,7 +67,9 @@ VOID print_fatal_error(const char* msg) {
 
     printf(COLOR_RED "fatal error" COLOR_RESET " : %s\n" COLOR_RED "%s" COLOR_RESET "\n", msg, (char*)error_msg);
     fflush(stdout);
-    LeaveCriticalSection(&console_lock);
+    // This thread leaves the console lock held, as for some reason calling fatal error isn't exiting the program
+    // This is a temporary fix
+    //LeaveCriticalSection(&console_lock);
 
     LocalFree(error_msg);
 }

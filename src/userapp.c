@@ -45,10 +45,6 @@ VOID full_virtual_memory_test(VOID) {
         }
     }
 
-    if (thread_index == 0) {
-        print_fatal_error("test");
-    }
-
     SHORT thread_line = (SHORT)(thread_index);
     PFAULT_STATS stats = &fault_stats[thread_index];
 
