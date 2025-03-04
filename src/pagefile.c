@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <Windows.h>
 #include "../include/vm.h"
 #include "../include/debug.h"
@@ -121,13 +122,19 @@ ULONG64 get_disc_indices(PULONG64 disc_indices, ULONG64 num_indices)
     ULONG64 return_index;
 
     // If our free_disc_spot_count is zero, we can't get any indices and return without checking the bitmap
-    if (free_disc_spot_count == 0)
+    // TODO make ulong64
+    // Volatile read is needed here for two reasons
+    // 1. Breaking up the read. Without it, the compiler could break up the read into pieces and corrupt the contents
+    // If another thread is changing this value at the same time, the pieces won't fit anymore
+    // 2. Rereading. The compiler can substitute this read line at every single reference to this variable.
+    // If it changes in the gap, we think we have a snapshot but we don't
+    if (*(volatile ULONG_PTR *) (&free_disc_spot_count) == 0)
     {
         return 0;
     }
 
     // Tries to get as many disc indices from the freed spaces stack as possible
-    while (TRUE)
+    while (count < num_indices)
     {
         return_index = get_freed_index();
         if (return_index != DISC_INDEX_FAIL_CODE)
@@ -144,7 +151,7 @@ ULONG64 get_disc_indices(PULONG64 disc_indices, ULONG64 num_indices)
     if (count == num_indices)
     {
         // Decrement the free_disc_spot_count by the number of indices we got
-        InterlockedExchange64(&free_disc_spot_count, free_disc_spot_count - count);
+        InterlockedAdd64(&free_disc_spot_count, 0 - (ULONG64) count);
         return count;
     }
 
@@ -164,7 +171,7 @@ ULONG64 get_disc_indices(PULONG64 disc_indices, ULONG64 num_indices)
 
     // If we didn't break, we found less than num_indices indices and return how many we actually got
     // If we did break, we got num_indices indices and return that
-    InterlockedExchange64(&free_disc_spot_count, free_disc_spot_count - count);
+    InterlockedAdd64(&free_disc_spot_count, 0 - (ULONG64) count);
     return count;
 }
 

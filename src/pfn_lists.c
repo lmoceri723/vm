@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <Windows.h>
 #include "../include/vm.h"
 #include "../include/debug.h"
@@ -151,6 +152,8 @@ PFN_LIST batch_pop_from_list_head(PPFN_LIST listhead, PPFN_LIST batch_list, ULON
         }
 
         peeked_page = CONTAINING_RECORD(flink_entry, PFN, entry);
+        // Save the next entry before trying to lock the page, as removing it from the list will clear the entry
+        PLIST_ENTRY next_entry = flink_entry->Flink;
         // Try to lock the pfn at the head
         if (try_lock_pfn(peeked_page) == TRUE) {
             remove_from_list(peeked_page);
@@ -167,7 +170,7 @@ PFN_LIST batch_pop_from_list_head(PPFN_LIST listhead, PPFN_LIST batch_list, ULON
             }
         }
         // The next entry should be moved to no matter what, as we have moved on from the current page
-        flink_entry = flink_entry->Flink;
+        flink_entry = next_entry;
     }
 
     return *batch_list;

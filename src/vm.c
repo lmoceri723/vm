@@ -24,7 +24,7 @@ VOID fatal_error(char *msg)
     }
     print_fatal_error(msg);
 
-    //DebugBreak();
+    DebugBreak();
     TerminateProcess(GetCurrentProcess(), 1);
 }
 

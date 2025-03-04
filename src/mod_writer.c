@@ -5,7 +5,6 @@
 
 #define MAX_MOD_BATCH                   ((ULONG64) 256)
 
-#define PAGE_WRITE_FUNCTION            write_page_to_disc
 
 BOOLEAN write_pages_to_disc(VOID)
 {
@@ -13,6 +12,8 @@ BOOLEAN write_pages_to_disc(VOID)
     PFN_LIST batch_list;
     PPFN pfn;
     PFN local;
+
+    ULONG64 start_time = GetTickCount64();
 
     // Find the target number of pages to write
     target_pages = MAX_MOD_BATCH;
@@ -55,6 +56,13 @@ BOOLEAN write_pages_to_disc(VOID)
     batch_pop_from_list_head(&modified_page_list, &batch_list, target_pages, TRUE);
     LeaveCriticalSection(&modified_page_list.lock);
 
+    target_pages = batch_list.num_pages;
+
+    if (batch_list.num_pages == 0)
+    {
+        free_disc_indices(disc_indices, num_returned_indices, 0);
+        return FALSE;
+    }
 
     // Find the frame numbers associated with the PFNs
     ULONG64 frame_numbers[MAX_MOD_BATCH];
@@ -95,6 +103,7 @@ BOOLEAN write_pages_to_disc(VOID)
             local.flags.state = STANDBY;
             local.flags.reference -= 1;
             write_pfn(pfn, local);
+            unlock_pfn(pfn);
         }
         // In this case we know that the page in memory was written during our pagefile write
         // We have to throw away our page file space as it is stale data now
@@ -102,6 +111,7 @@ BOOLEAN write_pages_to_disc(VOID)
             local.flags.reference -= 1;
             local.flags.modified = 0;
             write_pfn(pfn, local);
+            unlock_pfn(pfn);
 
             free_disc_index(disc_indices[i]);
         }
@@ -121,8 +131,13 @@ BOOLEAN write_pages_to_disc(VOID)
     // Signal to other threads that pages are available
     SetEvent(pages_available_event);
 
+    ULONG64 end_time = GetTickCount64();
+    ULONG64 duration = end_time - start_time;
+
+    track_mod_write_time(duration, target_pages);
     return TRUE;
 }
+
 
 // This controls the thread that constantly writes pages to disc when prompted by other threads
 // In the future this should use a fraction of the CPU if the system cannot give it a full core
@@ -131,20 +146,15 @@ DWORD modified_write_thread(PVOID context)
     UNREFERENCED_PARAMETER(context);
 
     // This thread needs to be able to react to handles for waking as well as exiting
-    HANDLE handles[3];
+    HANDLE handles[2];
 
     handles[0] = system_exit_event;
     handles[1] = modified_writing_event;
-    handles[2] = disc_spot_available_event;
 
     // This waits for the system to start before doing anything
     WaitForSingleObject(system_start_event, INFINITE);
     set_modified_status("modified write thread started");
 
-    ULONG64 previous_available_pages = free_page_list.num_pages + standby_page_list.num_pages;
-    ULONG64 previous_tick_count = GetTickCount64();
-    // To start, we assume that writes take 10ms
-    ULONG64 write_duration = 10;
     while (TRUE)
     {
         ULONG index = WaitForMultipleObjects(ARRAYSIZE(handles), handles, FALSE, 1000);
@@ -154,34 +164,12 @@ DWORD modified_write_thread(PVOID context)
             break;
         }
 
-        while (TRUE) {
-            ULONG64 available_pages = free_page_list.num_pages + standby_page_list.num_pages;
-            LONG64 change_in_available_pages = previous_available_pages - available_pages;
-            previous_available_pages = available_pages;
-
-            if (change_in_available_pages <= 0)
+        ULONG64 batches = *(volatile ULONG_PTR *) (num_batches_to_write);
+        for (ULONG64 i = 0; i < batches; i++) {
+            // TODO LM FIX What if we can't write the pages to disc
+            if (write_pages_to_disc() == FALSE)
             {
                 break;
-            }
-
-            ULONG64 current_tick_count = GetTickCount64();
-            ULONG64 elapsed_time = current_tick_count - previous_tick_count;
-            previous_tick_count = current_tick_count;
-
-            // First, get the time until there are no available pages
-            ULONG64 time_until_no_available_pages = (available_pages * elapsed_time) / change_in_available_pages;
-            // Then create a window of time to write these pages
-            ULONG64 write_start = time_until_no_available_pages - (write_duration * (available_pages / MAX_MOD_BATCH));
-
-            if (GetTickCount64() >= write_start)
-            {
-                ULONG64 write_start_tick = GetTickCount64();
-                if (write_pages_to_disc() == FALSE)
-                {
-                    break;
-                }
-                ULONG64 write_end_tick = GetTickCount64();
-                write_duration = write_end_tick - write_start_tick;
             }
         }
     }

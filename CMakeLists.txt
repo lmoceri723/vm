@@ -3,6 +3,10 @@ cmake_minimum_required(VERSION 3.26)
 project(vm C)
 set(CMAKE_C_STANDARD 11)
 
+set(CMAKE_BUILD_TYPE Debug)
+add_compile_options(/Zi)  # Debug info
+add_link_options(/DEBUG)  # Include debug info in PDB
+
 # Configure include directories
 include_directories(include)
 
@@ -10,7 +14,8 @@ include_directories(include)
 file(GLOB SOURCES "src/*.c")
 
 # Configure executable
-add_executable(vm ${SOURCES})
+add_executable(vm ${SOURCES}
+        include/scheduler.h)
 
 # Configure installation
 install(TARGETS vm DESTINATION bin)

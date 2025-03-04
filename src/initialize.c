@@ -208,7 +208,7 @@ VOID initialize_pagefile_path()
     *lastBackslash = '\0';
 
     // Format the path to the pagefile
-    snprintf(pagefilePath, MAX_PATH, "%s%s", currentDirectory, PAGEFILE_RELATIVE_PATH);
+    snprintf(pagefilePath, MAX_PATH, "%s", PAGEFILE_ABSOLUTE_PATH);
 }
 
 VOID initialize_page_file() {

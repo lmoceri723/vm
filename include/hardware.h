@@ -19,7 +19,7 @@
 #define MB(x)                                    ((ULONG64) (KB(x) * 1024))
 #define GB(x)                                    ((ULONG64) (MB(x) * 1024))
 
-#define MEMORY_SIZE_IN_GB                        ((ULONG64) 8)
+#define MEMORY_SIZE_IN_GB                        ((ULONG64) 1)
 #define PAGE_FILE_SIZE_IN_GB                     ((ULONG64) MEMORY_SIZE_IN_GB * 2)
 
 #define DESIRED_NUMBER_OF_PHYSICAL_PAGES         (GB(MEMORY_SIZE_IN_GB) / PAGE_SIZE)
@@ -29,7 +29,7 @@
 #define NUMBER_OF_SYSTEM_DISC_PAGES              (MB(16) / PAGE_SIZE)
 #define NUMBER_OF_DISC_PAGES                     (NUMBER_OF_USER_DISC_PAGES + NUMBER_OF_SYSTEM_DISC_PAGES)
 
-#define NUMBER_OF_FAULTING_THREADS               8
+#define NUMBER_OF_FAULTING_THREADS               2
 
 #endif //HARDWARE_H
 

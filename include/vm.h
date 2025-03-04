@@ -7,5 +7,6 @@
 #include "pfn_lists.h"
 #include "pagefile.h"
 #include "console.h"
+#include "scheduler.h"
 
 #endif //VM_VM_H

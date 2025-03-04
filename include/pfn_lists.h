@@ -21,6 +21,6 @@ extern PFN_LIST batch_pop_from_list_head(PPFN_LIST listhead, PPFN_LIST batch_lis
 
 extern VOID initialize_listhead(PPFN_LIST listhead);
 extern BOOLEAN is_list_empty(PPFN_LIST listhead);
-VOID link_list_to_tail(PPFN_LIST first, PPFN_LIST last);
+extern VOID link_list_to_tail(PPFN_LIST first, PPFN_LIST last);
 
 #endif //PFN_LISTS_H

@@ -6,7 +6,7 @@
 #include "console.h"
 
 // Creates a central switch to turn debug mode on/off
-#define DBG                0
+#define DBG                1
 
 #if DBG
 #define assert(x)       if (!(x)) { printf ("Assertion failed: %s, file %s, line %d\n", #x, __FILE__, __LINE__); DebugBreak(); }
@@ -24,11 +24,6 @@
 #endif
 
 #define VA_ACCESS_MARKING                            0
-
-#define VA_ACCESS_MAP 1
-#if VA_ACCESS_MAP
-extern PBOOLEAN va_access_map;
-#endif
 
 #define READWRITE_LOGGING                        0
 #if READWRITE_LOGGING

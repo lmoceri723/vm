@@ -7,7 +7,7 @@
 #define PAGE_FILE_SIZE_IN_BYTES                  (NUMBER_OF_DISC_PAGES * PAGE_SIZE)
 #define PAGE_FILE_SIZE_IN_BITS                   (PAGE_FILE_SIZE_IN_BYTES * BITS_PER_BYTE)
 
-#define PAGEFILE_RELATIVE_PATH "\\pagefile\\pagefile.sys"
+#define PAGEFILE_ABSOLUTE_PATH "C:\\Users\\ltm14\\CLionProjects\\vm\\pagefile\\pagefile.sys"
 
 #define BITMAP_CHUNK                             ULONG64
 #define PBITMAP_CHUNK                            PULONG64
