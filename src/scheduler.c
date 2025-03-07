@@ -27,6 +27,13 @@ MOD_WRITE_TIME average_mod_write_times(VOID)
         total_pages += mod_write_times[i].num_pages;
     }
 
+    if (i == 0)
+    {
+        average.duration = 10;
+        average.num_pages = MAX_MOD_BATCH;
+        return average;
+    }
+
     average.duration = total_duration / i;
     average.num_pages = total_pages / i;
 
@@ -110,40 +117,43 @@ DWORD task_scheduling_thread(PVOID context)
             break;
         }
 
-        while (TRUE) {
-            // This count could be totally broken, as the counts of free and standby page counts are from different times
-            // We can trust them both individually at that time but not together
-            ULONG64 available_pages = *(volatile ULONG_PTR *) (&free_page_list.num_pages) +
-                                     *(volatile ULONG_PTR *) (&standby_page_list.num_pages);
+        // This count could be totally broken, as the counts of free and standby page counts are from different times
+        // We can trust them both individually at that time but not together
+        ULONG64 consumable_pages = *(volatile ULONG_PTR *) (&free_page_list.num_pages) +
+                                 *(volatile ULONG_PTR *) (&standby_page_list.num_pages);
 
-            // Track the current number of available pages
-            track_available_pages(available_pages);
+        // Track the current number of available pages
+        track_available_pages(consumable_pages);
 
-            // This finds the average number of pages that have been consumed in the last 16 seconds
-            ULONG64 average_pages_consumed = average_page_consumption();
+        // This finds the average number of pages that have been consumed in the last 16 seconds
+        ULONG64 average_pages_consumed = average_page_consumption();
 
-            MOD_WRITE_TIME average = average_mod_write_times();
-            ULONG64 per_page_cost = average.duration / average.num_pages;
+        MOD_WRITE_TIME average = average_mod_write_times();
+        FLOAT per_page_cost = average.duration / average.num_pages;
 
-            // First, find how long it will take us to empty our modified list completely
-            ULONG64 time_to_empty_modified = modified_page_list.num_pages / per_page_cost;
-            // Second, find how long until we have no more free or standby pages
-            ULONG64 time_until_no_pages = available_pages / average_pages_consumed;
+        // First, find how long it will take us to empty our modified list completely and convert to seconds
+        ULONG64 time_to_empty_modified = modified_page_list.num_pages / per_page_cost / 1000;
+        // Second, find how long until we have no more free or standby pages
+        ULONG64 time_until_no_pages = consumable_pages / average_pages_consumed;
 
-            if (time_to_empty_modified < time_until_no_pages) {
-                // do a write every per_page_cost writes
-                ULONG64 time_per_operation = per_page_cost;
-                // sleep(time_per_operation)
-            }
-            else {
+        // Store the amount of writes we want to do in the next second
+        ULONG64 num_batches_local = 0;
+        // Find the most pages we can write in a second
+        ULONG64 max_possible_batches = 1000 / per_page_cost / MAX_MOD_BATCH;
 
-            // do a write every seconds remaining / time to drain
-            ULONG64 time_per_operation;
-            // sleep(time_per_operation - time_to_drain)
-
-            // if there isnt enough time to drain, do 1 s / per page cost writes
-            // otherwise do the inverse
+        // If we don't have enough time to empty the modified list, write constantly
+        if (time_until_no_pages <= time_to_empty_modified) {
+            num_batches_local = max_possible_batches;
         }
+        else {
+            // We know at this point that we have extra time so we don't need to write constantly
+            // We divide the time to empty the modified list by the time until we have no more pages
+            // This gives us a fraction of the time that we should write
+            FLOAT fraction_used = time_to_empty_modified / time_until_no_pages;
+            num_batches_local = max_possible_batches * fraction_used;
+        }
+
+        num_batches_to_write = num_batches_local;
     }
 
     return 0;

@@ -18,8 +18,8 @@ ULONG faulting_thread_ids[NUMBER_OF_FAULTING_THREADS];
 FAULT_STATS fault_stats[NUMBER_OF_FAULTING_THREADS];
 
 // These are handles to our system threads, our trimming/modified-writing threads
-HANDLE system_handles[NUMBER_OF_FAULTING_THREADS];
-ULONG system_thread_ids[NUMBER_OF_FAULTING_THREADS];
+HANDLE system_handles[NUMBER_OF_SYSTEM_THREADS];
+ULONG system_thread_ids[NUMBER_OF_SYSTEM_THREADS];
 
 HANDLE physical_page_handle;
 
@@ -124,7 +124,6 @@ VOID initialize_events(VOID)
     modified_writing_event = CreateEvent(NULL, FALSE, FALSE, NULL);
     NULL_CHECK(modified_writing_event, "initialize_events : could not initialize modified_writing_event")
 
-    // TODO LM FIX Not a synchronization event
     pages_available_event = CreateEvent(NULL, FALSE, FALSE, NULL);
     NULL_CHECK(pages_available_event, "initialize_events : could not initialize pages_available_event")
 
@@ -173,21 +172,12 @@ VOID initialize_threads(VOID)
     system_handles[1] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)
     modified_write_thread,(LPVOID) (ULONG_PTR) 1, 0, &system_thread_ids[1]);
     NULL_CHECK(system_handles[1], "initialize_threads : could not initialize thread handle for modified_write_thread")
+
+    system_handles[2] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)
+    task_scheduling_thread,(LPVOID) (ULONG_PTR) 2, 0, &system_thread_ids[2]);
+    NULL_CHECK(system_handles[2], "initialize_threads : could not initialize thread handle for task_scheduling_thread")
 }
 
-// This creates our page file
-// Currently, we allocate a chunk of system memory to simulate a page file
-// In the future, we will incorporate a real page file
-// VOID initialize_page_file(ULONG64 num_disc_pages)
-// {
-//     ULONG64 page_file_size_in_bytes;
-//
-//     page_file_size_in_bytes = num_disc_pages * PAGE_SIZE;
-//
-//     // Allocates the memory for the page file
-//     page_file = malloc(page_file_size_in_bytes);
-//     NULL_CHECK(page_file, "create_page_file : could not create page file")
-// }
 
 VOID initialize_pagefile_path()
 {

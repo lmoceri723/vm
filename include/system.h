@@ -2,7 +2,7 @@
 #define VM_SYSTEM_H
 #include <Windows.h>
 
-#define MAX_MOD_WRITER_CPU_UTIL_PERCENT                           20
+#define MAX_MOD_BATCH                   ((ULONG64) 256)
 
 #define NULL_CHECK(x, msg)       if (x == NULL) {fatal_error(msg); }
 

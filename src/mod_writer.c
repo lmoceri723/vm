@@ -3,8 +3,6 @@
 #include "../include/vm.h"
 #include "../include/debug.h"
 
-#define MAX_MOD_BATCH                   ((ULONG64) 256)
-
 
 BOOLEAN write_pages_to_disc(VOID)
 {

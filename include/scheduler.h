@@ -16,13 +16,17 @@ extern ULONG64 mod_write_time_index;
 extern ULONG64 available_pages[SECONDS_TO_TRACK];
 extern ULONG64 available_pages_index;
 
+extern ULONG64 num_batches_to_write;
+
 extern MOD_WRITE_TIME average_mod_write_times(VOID);
 extern VOID track_mod_write_time(ULONG64 duration, ULONG64 num_pages);
 
 extern ULONG64 average_page_consumption(VOID);
 extern VOID track_available_pages(ULONG64 available_pages);
 
-ULONG64 num_batches_to_write;
+extern DWORD task_scheduling_thread(PVOID context);
+
+
 
 
 
