@@ -6,7 +6,7 @@
 #include "console.h"
 
 // Creates a central switch to turn debug mode on/off
-#define DBG                1
+#define DBG                0
 
 #if DBG
 #define assert(x)       if (!(x)) { printf ("Assertion failed: %s, file %s, line %d\n", #x, __FILE__, __LINE__); DebugBreak(); }
@@ -25,7 +25,7 @@
 
 #define VA_ACCESS_MARKING                            0
 
-#define READWRITE_LOGGING                        0
+#define READWRITE_LOGGING                            0
 #if READWRITE_LOGGING
 
 #define LOG_SIZE                                 32768
@@ -69,7 +69,7 @@ typedef struct {
     ULONG64 num_fake_faults;
 } FAULT_STATS, *PFAULT_STATS;
 
-extern FAULT_STATS fault_stats[NUMBER_OF_FAULTING_THREADS];
+extern PFAULT_STATS fault_stats;
 
 extern VOID check_list_integrity(PPFN_LIST listhead, PPFN match_pfn);
 extern VOID log_access(ULONG is_pte, PVOID ppte_or_fn, ULONG operation);

@@ -29,6 +29,7 @@ typedef struct {
 extern PPFN pfn_base;
 extern PPFN pfn_end;
 extern ULONG_PTR highest_frame_number;
+extern ULONG_PTR lowest_frame_number;
 
 extern ULONG64 frame_number_from_pfn(PPFN pfn);
 extern PPFN pfn_from_frame_number(ULONG64 frame_number);

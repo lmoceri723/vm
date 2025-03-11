@@ -5,7 +5,7 @@
 #include "hardware.h"
 #include "debug.h"
 
-extern ULONG faulting_thread_ids[NUMBER_OF_FAULTING_THREADS];
+extern PULONG faulting_thread_ids;
 
 extern ULONG64 num_trims;
 

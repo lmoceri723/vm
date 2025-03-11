@@ -55,7 +55,7 @@ typedef struct {
 extern PPTE pte_base;
 extern PPTE pte_end;
 
-extern CRITICAL_SECTION pte_region_locks[NUMBER_OF_PTE_REGIONS];
+extern PCRITICAL_SECTION pte_region_locks;
 
 extern PPTE pte_from_va(PVOID virtual_address);
 extern PVOID va_from_pte(PPTE pte);

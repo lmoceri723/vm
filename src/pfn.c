@@ -5,6 +5,7 @@
 PPFN pfn_base;
 PPFN pfn_end;
 ULONG_PTR highest_frame_number;
+ULONG_PTR lowest_frame_number;
 
 PPFN pfn_from_frame_number(ULONG64 frame_number)
 {

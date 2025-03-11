@@ -5,7 +5,7 @@
 PPTE pte_base;
 PPTE pte_end;
 
-CRITICAL_SECTION pte_region_locks[NUMBER_OF_PTE_REGIONS];
+PCRITICAL_SECTION pte_region_locks;
 
 // These functions convert between matching linear structures (pte and va)
 PPTE pte_from_va(PVOID virtual_address)

@@ -13,13 +13,13 @@ int compare(const void * a, const void * b);
 PULONG_PTR physical_page_numbers;
 
 // These are handles to our faulting threads
-HANDLE faulting_handles[NUMBER_OF_FAULTING_THREADS];
-ULONG faulting_thread_ids[NUMBER_OF_FAULTING_THREADS];
-FAULT_STATS fault_stats[NUMBER_OF_FAULTING_THREADS];
+PHANDLE faulting_handles;
+PULONG faulting_thread_ids;
+PFAULT_STATS fault_stats;
 
 // These are handles to our system threads, our trimming/modified-writing threads
-HANDLE system_handles[NUMBER_OF_SYSTEM_THREADS];
-ULONG system_thread_ids[NUMBER_OF_SYSTEM_THREADS];
+PHANDLE system_handles;
+PULONG system_thread_ids;
 
 HANDLE physical_page_handle;
 
@@ -37,62 +37,62 @@ CRITICAL_SECTION modified_write_va_lock;
 CRITICAL_SECTION modified_read_va_lock;
 CRITICAL_SECTION repurpose_zero_va_lock;
 
-char pagefilePath[MAX_PATH];
+char pagefile_path[MAX_PATH];
 
 // These are page file handles
 //HANDLE page_file;
 //HANDLE page_file_mapping;
 
 // This is Windows-specific code to acquire a privilege.
-VOID GetPrivilege(VOID)
+VOID get_privilege(VOID)
 {
     set_initialize_status("initialize_system", "getting privilege");
 
     struct {
-        DWORD Count;
-        LUID_AND_ATTRIBUTES Privilege [1];
-    } Info;
+        DWORD count;
+        LUID_AND_ATTRIBUTES privilege[1];
+    } info;
 
-    HANDLE hProcess;
-    HANDLE Token;
-    BOOL Result;
+    HANDLE h_process;
+    HANDLE token;
+    BOOL result;
 
     // Open the token.
-    hProcess = GetCurrentProcess();
+    h_process = GetCurrentProcess();
 
-    Result = OpenProcessToken (hProcess,TOKEN_ADJUST_PRIVILEGES,&Token);
+    result = OpenProcessToken(h_process, TOKEN_ADJUST_PRIVILEGES, &token);
 
-    if (Result == FALSE) {
+    if (result == FALSE) {
         fatal_error("get_privilege : cannot open process token.");
     }
 
     // Enable the privilege.
-    Info.Count = 1;
-    Info.Privilege[0].Attributes = SE_PRIVILEGE_ENABLED;
+    info.count = 1;
+    info.privilege[0].Attributes = SE_PRIVILEGE_ENABLED;
 
     // Get the LUID.
-    Result = LookupPrivilegeValue (NULL,
-                                   SE_LOCK_MEMORY_NAME,
-                                   &(Info.Privilege[0].Luid));
+    result = LookupPrivilegeValue(NULL,
+                                  SE_LOCK_MEMORY_NAME,
+                                  &(info.privilege[0].Luid));
 
-    if (Result == FALSE) {
+    if (result == FALSE) {
         fatal_error("get_privilege : cannot get privilege");
     }
 
     // Adjust the privilege and check the result
-    Result = AdjustTokenPrivileges (Token,FALSE,(PTOKEN_PRIVILEGES) &Info,
-                                    0,NULL,NULL);
+    result = AdjustTokenPrivileges(token, FALSE, (PTOKEN_PRIVILEGES) &info,
+                                   0, NULL, NULL);
 
-    if (Result == FALSE) {
-        printf("get_privilege : cannot adjust token privileges %lu", GetLastError ());
+    if (result == FALSE) {
+        printf("get_privilege : cannot adjust token privileges %lu", GetLastError());
         fatal_error(NULL);
     }
 
-    if (GetLastError () != ERROR_SUCCESS) {
+    if (GetLastError() != ERROR_SUCCESS) {
         fatal_error("get_privilege : cannot enable the SE_LOCK_MEMORY_NAME privilege - check local policy");
     }
 
-    CloseHandle(Token);
+    CloseHandle(token);
 }
 
 // This function is used to initialize all the locks used in the system
@@ -106,11 +106,6 @@ VOID initialize_locks(VOID)
     INITIALIZE_LOCK(free_page_list.lock);
     INITIALIZE_LOCK(standby_page_list.lock);
     INITIALIZE_LOCK(modified_page_list.lock);
-
-    for (unsigned i = 0; i < NUMBER_OF_PTE_REGIONS; i++)
-    {
-        INITIALIZE_LOCK(pte_region_locks[i]);
-    }
 }
 
 // This function is used to initialize all the events used in the system
@@ -142,12 +137,14 @@ VOID initialize_events(VOID)
 // For this reason, this needs to be our last step of initialization
 VOID initialize_threads(VOID)
 {
-//    SYSTEM_INFO info;
-//    ULONG num_processors;
+    faulting_handles = (PHANDLE) malloc(NUMBER_OF_FAULTING_THREADS * sizeof(HANDLE));
+    NULL_CHECK(faulting_handles, "initialize_threads : could not allocate memory for faulting_handles")
 
-//    GetSystemInfo(&info);
-//    In my system, this is 16
-//    num_processors = info.dwNumberOfProcessors;
+    faulting_thread_ids = (PULONG) malloc(NUMBER_OF_FAULTING_THREADS * sizeof(ULONG));
+    NULL_CHECK(faulting_thread_ids, "initialize_threads : could not allocate memory for faulting_thread_ids")
+
+    fault_stats = (PFAULT_STATS) malloc(NUMBER_OF_FAULTING_THREADS * sizeof(FAULT_STATS));
+    NULL_CHECK(fault_stats, "initialize_threads : could not allocate memory for fault_stats")
 
     for (ULONG i = 0; i < NUMBER_OF_FAULTING_THREADS; i++)
     {
@@ -164,6 +161,12 @@ VOID initialize_threads(VOID)
         fault_stats[i].num_reaccesses = 0;
         fault_stats[i].num_fake_faults = 0;
     }
+
+    system_handles = (PHANDLE) malloc(NUMBER_OF_SYSTEM_THREADS * sizeof(HANDLE));
+    NULL_CHECK(system_handles, "initialize_threads : could not allocate memory for system_handles")
+
+    system_thread_ids = (PULONG) malloc(NUMBER_OF_SYSTEM_THREADS * sizeof(ULONG));
+    NULL_CHECK(system_thread_ids, "initialize_threads : could not allocate memory for system_thread_ids")
 
     system_handles[0] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)
     trim_thread,(LPVOID) (ULONG_PTR) 0, 0, &system_thread_ids[0]);
@@ -198,7 +201,7 @@ VOID initialize_pagefile_path()
     *lastBackslash = '\0';
 
     // Format the path to the pagefile
-    snprintf(pagefilePath, MAX_PATH, "%s", PAGEFILE_ABSOLUTE_PATH);
+    snprintf(pagefile_path, MAX_PATH, "%s", PAGEFILE_ABSOLUTE_PATH);
 }
 
 VOID initialize_page_file() {
@@ -209,12 +212,12 @@ VOID initialize_page_file() {
     LARGE_INTEGER size;
     size.QuadPart = PAGE_FILE_SIZE_IN_BYTES;
 
-    pagefile_handle = CreateFileA(pagefilePath, GENERIC_READ | GENERIC_WRITE, 0,
+    pagefile_handle = CreateFileA(pagefile_path, GENERIC_READ | GENERIC_WRITE, 0,
                                   NULL, CREATE_ALWAYS,
                                   FILE_ATTRIBUTE_NORMAL, NULL);
 
     if (pagefile_handle == INVALID_HANDLE_VALUE) {
-        printf("pagefilePath: %s\n", pagefilePath);
+        printf("pagefilePath: %s\n", pagefile_path);
         fatal_error("Failed to open pagefile\n");
     }
 
@@ -341,13 +344,24 @@ VOID initialize_pte_metadata(VOID)
     set_initialize_status("initialize_system", "creating PTEs");
 
     ULONG_PTR num_pte_bytes = virtual_address_size / PAGE_SIZE * sizeof(PTE);
-    pte_base = malloc(num_pte_bytes);
 
+    pte_base = malloc(num_pte_bytes);
     NULL_CHECK(pte_base, "initialize_pte_metadata : could not allocate memory for pte metadata")
+    pte_end = pte_base + num_pte_bytes / sizeof(PTE);
 
     memset(pte_base, 0, num_pte_bytes);
 
-    pte_end = pte_base + num_pte_bytes / sizeof(PTE);
+    // Initialize the locks for the PTE regions
+    // Add PTE_REGION_SIZE - 1 to virtual_address_size to round up in case of an uneven division
+    ULONG64 num_pte_regions = (virtual_address_size + PTE_REGION_SIZE - 1) / PTE_REGION_SIZE;
+
+    pte_region_locks = (CRITICAL_SECTION *) malloc(num_pte_regions * sizeof(CRITICAL_SECTION));
+    NULL_CHECK(pte_region_locks, "initialize_locks : could not allocate memory for pte_region_locks")
+
+    for (unsigned i = 0; i < NUMBER_OF_PTE_REGIONS; i++)
+    {
+        INITIALIZE_LOCK(pte_region_locks[i]);
+    }
 }
 
 VOID insert_tail_list(PLIST_ENTRY listhead, PLIST_ENTRY entry) {
@@ -358,24 +372,28 @@ VOID insert_tail_list(PLIST_ENTRY listhead, PLIST_ENTRY entry) {
     listhead->Blink = entry;
 }
 
+#define PFN_SIZE_NOT_DIVISIBLE_BY_PAGE_SIZE ((sizeof(PFN) % PAGE_SIZE) != 0)
+
+
 // This function initializes the PFNs that we use to track the state of physical pages
 VOID initialize_pfn_metadata(VOID)
 {
     set_initialize_status("initialize_system", "initializing PFNs");
 
-    // This holds the highest frame number in our page pool
-    // We need this because the operating system gives us random pages from its pool instead of a sequential range
-    highest_frame_number = physical_page_numbers[physical_page_count - 1];
+    // We need the highest frame number in our page pool
+    // Because the operating system gives us random pages from its pool instead of a sequential range
+    ULONG64 num_pfn_bytes = (highest_frame_number) * sizeof(PFN);
 
     // We reserve memory for the PFNs, but do not commit it
     // This is because we do not have all PFNs between our lowest and highest frame numbers in our page pool
     // For example, we could have frame numbers 2, 7, and 10, but not 3, 4, 5, 6, 8, or 9
     // We will only commit memory for the PFNs that we actually have in our page pool
     // While reserving memory for all of them in order to have a O(1) lookup time between a frame number and its pfn
-    pfn_base = VirtualAlloc(NULL, highest_frame_number * sizeof(PFN),
-                            MEM_RESERVE, PAGE_READWRITE);
-    pfn_end = pfn_base + highest_frame_number * sizeof(PFN);
+    pfn_base = VirtualAlloc(NULL, num_pfn_bytes, MEM_RESERVE, PAGE_READWRITE);
     NULL_CHECK(pfn_base, "initialize_pfn_metadata : could not reserve memory for pfn metadata")
+
+    pfn_base -= lowest_frame_number * sizeof(PFN);
+    pfn_end = pfn_base + num_pfn_bytes;
 
     PPFN pfn;
     ULONG_PTR frame_number;
@@ -387,6 +405,25 @@ VOID initialize_pfn_metadata(VOID)
         // the PTE has never been accessed before
         if (frame_number == 0) {
             continue;
+        }
+
+        // Calculate the offset for the current frame number
+        ULONG_PTR offset = frame_number * sizeof(PFN);
+
+#ifdef PFN_SIZE_NOT_DIVISIBLE_BY_PAGE_SIZE
+        // Check if the PFN stretches between two 4K virtual addresses
+        if ((offset / PAGE_SIZE) != ((offset + sizeof(PFN) - 1) / PAGE_SIZE))
+        {
+            // Commit memory for the next page as well
+            LPVOID result = VirtualAlloc((BYTE*)pfn_base + offset, sizeof(PFN) + PAGE_SIZE, MEM_COMMIT, PAGE_READWRITE);
+            NULL_CHECK(result, "initialize_pfn_metadata : could not commit memory for pfn metadata")
+        }
+        else
+#endif
+        {
+            // Commit memory for the pfn inside our reserved chunk
+            LPVOID result = VirtualAlloc((BYTE*)pfn_base + offset, sizeof(PFN), MEM_COMMIT, PAGE_READWRITE);
+            NULL_CHECK(result, "initialize_pfn_metadata : could not commit memory for pfn metadata")
         }
 
         // Commits memory for the pfn inside our reserved chunk
@@ -407,6 +444,20 @@ VOID initialize_pfn_metadata(VOID)
         // Inserts our newly initialized pfn into the free page list
         insert_tail_list(&free_page_list.entry, &pfn->entry);
         free_page_list.num_pages++;
+    }
+}
+
+VOID find_frame_number_range(VOID) {
+    // iterate through the physical page numbers to find the highest and lowest frame numbers
+
+    for (ULONG64 i = 0; i < physical_page_count; i++) {
+        if (physical_page_numbers[i] > highest_frame_number) {
+            highest_frame_number = physical_page_numbers[i];
+        }
+
+        if (physical_page_numbers[i] < lowest_frame_number) {
+            lowest_frame_number = physical_page_numbers[i];
+        }
     }
 }
 
@@ -434,26 +485,19 @@ VOID initialize_pages()
 
     // TODO just find the highest frame number and the minumum frame number
     // Subtract from the pointer
+    find_frame_number_range();
 
-    // This sorts the physical page numbers in ascending order
-    qsort(physical_page_numbers, physical_page_count, sizeof(ULONG_PTR),
-          compare);
 }
 
-VOID initialize_accessed_va_map(VOID)
-{
-    ULONG64 virtual_address_size_in_pages = virtual_address_size / PAGE_SIZE;
-
-    PBOOLEAN va_accessed_map = (PBOOLEAN) malloc(virtual_address_size_in_pages * sizeof(BOOLEAN));
-
-    NULL_CHECK(va_accessed_map, "initialize_accessed_va_map : could not allocate memory for va accessed map")
-    memset(va_accessed_map, 0, virtual_address_size_in_pages * sizeof(BOOLEAN));
-}
-
-// This is a helper function for qsort
-int compare (const void *a, const void *b) {
-    return ( *(PULONG_PTR) a - *(PULONG_PTR) b );
-}
+// VOID initialize_accessed_va_map(VOID)
+// {
+//     ULONG64 virtual_address_size_in_pages = virtual_address_size / PAGE_SIZE;
+//
+//     PBOOLEAN va_accessed_map = (PBOOLEAN) malloc(virtual_address_size_in_pages * sizeof(BOOLEAN));
+//
+//     NULL_CHECK(va_accessed_map, "initialize_accessed_va_map : could not allocate memory for va accessed map")
+//     memset(va_accessed_map, 0, virtual_address_size_in_pages * sizeof(BOOLEAN));
+// }
 
 void initialize_console(void) {
     InitializeCriticalSection(&console_lock);
@@ -487,7 +531,7 @@ VOID initialize_system (VOID) {
     initialize_console();
 
     // Acquire privilege as the operating system reserves the sole right to allocate pages.
-    GetPrivilege();
+    get_privilege();
 
     physical_page_handle = GetCurrentProcess();
 
@@ -519,7 +563,7 @@ VOID initialize_system (VOID) {
 VOID delete_pagefile() {
     UnmapViewOfFile(page_file);
     CloseHandle(pagefile_handle);
-    DeleteFileA(pagefilePath);
+    DeleteFileA(pagefile_path);
 }
 
 // Terminates the program and gives all resources back to the operating system
@@ -546,6 +590,13 @@ VOID deinitialize_system (VOID)
     // We can also do the same for all of our pages
     FreeUserPhysicalPages(physical_page_handle,&physical_page_count,
                           physical_page_numbers);
+
+    // Free the thread handles and thread id arrays
+    free(faulting_handles);
+    free(faulting_thread_ids);
+    free(fault_stats);
+    free(system_handles);
+    free(system_thread_ids);
 
     set_initialize_status("deinitialize_system", "tests finished, system successfully deinitialized");
 }
