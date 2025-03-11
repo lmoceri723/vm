@@ -53,8 +53,6 @@ void trim(PPTE pte)
     LeaveCriticalSection(&modified_page_list.lock);
 
     unlock_pfn(pfn);
-
-    SetEvent(modified_writing_event);
 }
 
 // This function ages PTEs by incrementing their age by 1

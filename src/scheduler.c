@@ -2,6 +2,8 @@
 #include "../include/vm.h"
 #include "../include/scheduler.h"
 
+#include <stdio.h>
+
 MOD_WRITE_TIME mod_write_times[MOD_WRITE_TIMES_TO_TRACK];
 ULONG64 mod_write_time_index;
 
@@ -129,17 +131,18 @@ DWORD task_scheduling_thread(PVOID context)
         ULONG64 average_pages_consumed = average_page_consumption();
 
         MOD_WRITE_TIME average = average_mod_write_times();
-        FLOAT per_page_cost = average.duration / average.num_pages;
+        DOUBLE per_page_cost = (DOUBLE) average.duration / (DOUBLE) average.num_pages;
 
         // First, find how long it will take us to empty our modified list completely and convert to seconds
-        ULONG64 time_to_empty_modified = modified_page_list.num_pages / per_page_cost / 1000;
+        ULONG64 modified_pages = modified_page_list.num_pages;
+        ULONG64 time_to_empty_modified = (ULONG64) ((DOUBLE) modified_pages / per_page_cost / 1000);
         // Second, find how long until we have no more free or standby pages
         ULONG64 time_until_no_pages = consumable_pages / average_pages_consumed;
 
         // Store the amount of writes we want to do in the next second
         ULONG64 num_batches_local = 0;
         // Find the most pages we can write in a second
-        ULONG64 max_possible_batches = 1000 / per_page_cost / MAX_MOD_BATCH;
+        ULONG64 max_possible_batches = (ULONG64) (1000 / per_page_cost / MAX_MOD_BATCH);
 
         // If we don't have enough time to empty the modified list, write constantly
         if (time_until_no_pages <= time_to_empty_modified) {
@@ -149,11 +152,12 @@ DWORD task_scheduling_thread(PVOID context)
             // We know at this point that we have extra time so we don't need to write constantly
             // We divide the time to empty the modified list by the time until we have no more pages
             // This gives us a fraction of the time that we should write
-            FLOAT fraction_used = time_to_empty_modified / time_until_no_pages;
-            num_batches_local = max_possible_batches * fraction_used;
+            DOUBLE fraction_used = (DOUBLE) time_to_empty_modified / (DOUBLE) time_until_no_pages;
+            num_batches_local = (ULONG64) ((DOUBLE) max_possible_batches * fraction_used);
         }
 
         num_batches_to_write = num_batches_local;
+        SetEvent(modified_writing_event);
     }
 
     return 0;

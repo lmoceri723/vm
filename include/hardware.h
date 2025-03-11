@@ -19,7 +19,7 @@
 #define MB(x)                                    ((ULONG64) (KB(x) * 1024))
 #define GB(x)                                    ((ULONG64) (MB(x) * 1024))
 
-#define MEMORY_SIZE_IN_GB                        ((ULONG64) 1)
+#define MEMORY_SIZE_IN_GB                        ((ULONG64) 12)
 #define PAGE_FILE_SIZE_IN_GB                     ((ULONG64) MEMORY_SIZE_IN_GB * 2)
 
 #define DESIRED_NUMBER_OF_PHYSICAL_PAGES         (GB(MEMORY_SIZE_IN_GB) / PAGE_SIZE)

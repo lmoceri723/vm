@@ -162,7 +162,7 @@ DWORD modified_write_thread(PVOID context)
             break;
         }
 
-        ULONG64 batches = *(volatile ULONG_PTR *) (num_batches_to_write);
+        ULONG64 batches = *(volatile ULONG64 *) (&num_batches_to_write);
         for (ULONG64 i = 0; i < batches; i++) {
             // TODO LM FIX What if we can't write the pages to disc
             if (write_pages_to_disc() == FALSE)

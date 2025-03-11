@@ -122,7 +122,6 @@ ULONG64 get_disc_indices(PULONG64 disc_indices, ULONG64 num_indices)
     ULONG64 return_index;
 
     // If our free_disc_spot_count is zero, we can't get any indices and return without checking the bitmap
-    // TODO make ulong64
     // Volatile read is needed here for two reasons
     // 1. Breaking up the read. Without it, the compiler could break up the read into pieces and corrupt the contents
     // If another thread is changing this value at the same time, the pieces won't fit anymore
